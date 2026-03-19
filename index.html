@@ -332,7 +332,11 @@ async function handlePhoto(event,floor,unit){
     } else throw new Error('fail');
   } catch(e){
     btn.className='photo-btn'; btn.innerHTML='<span>📷</span> 카메라로 읽기';
-    showToast('인식 실패 — 수동 입력해주세요','err');
+    const msg=e.message||'';
+    if(msg.includes('400')||msg.toLowerCase().includes('api key')) showToast('API 키 오류 — 키를 확인해주세요','err');
+    else if(msg.includes('429')) showToast('요청 한도 초과 — 잠시 후 재시도','err');
+    else showToast('인식 실패 — 정면으로 다시 찍어보세요','err');
+    console.error('Gemini error:', msg);
   }
 }
 
@@ -347,12 +351,25 @@ async function callGemini(b64,mtype){
     method:'POST', headers:{'Content-Type':'application/json'},
     body:JSON.stringify({ contents:[{parts:[
       {inline_data:{mime_type:mtype,data:b64}},
-      {text:'온습도계 사진에서 온도와 습도 숫자를 읽어 JSON만 반환: {"temp":22.5,"hum":45.2} 못 읽으면 null'}
+      {text:'이 사진은 온습도계입니다. 화면에 표시된 온도(°C)와 습도(%) 숫자를 읽어주세요. LCD 숫자, 디지털 숫자, 7세그먼트 디스플레이 모두 인식 가능합니다. 반드시 JSON 형식으로만 답하세요: {"temp":22.5,"hum":45.2} 숫자를 읽을 수 없으면 해당 항목을 null로 하세요. 다른 텍스트는 절대 포함하지 마세요.'}
     ]}], generationConfig:{maxOutputTokens:80} })
   });
   if(!res.ok){ const e=await res.json().catch(()=>{}); throw new Error(e?.error?.message||res.status); }
   const j=await res.json();
-  return JSON.parse((j.candidates?.[0]?.content?.parts?.[0]?.text||'').replace(/```json|```/g,'').trim());
+  const rawText=(j.candidates?.[0]?.content?.parts?.[0]?.text||'');
+  console.log('Gemini 원본 응답:', rawText);
+  // 응답을 토스트로도 잠깐 보여줌 (디버그용)
+  showToast('응답: '+rawText.slice(0,40),'');
+  const cleaned=rawText.replace(/```json|```/g,'').trim();
+  // JSON이 아닌 경우 숫자 직접 추출 시도
+  if(!cleaned.startsWith('{')) {
+    const tMatch=rawText.match(/온도[^\d]*(\d+\.?\d*)/);
+    const hMatch=rawText.match(/습도[^\d]*(\d+\.?\d*)/);
+    const t2=rawText.match(/(\d{2,3}\.\d)/g);
+    if(t2&&t2.length>=2) return {temp:parseFloat(t2[0]),hum:parseFloat(t2[1])};
+    if(tMatch||hMatch) return {temp:tMatch?parseFloat(tMatch[1]):null, hum:hMatch?parseFloat(hMatch[1]):null};
+  }
+  return JSON.parse(cleaned);
 }
 
 // ── 보고서 생성 ──
