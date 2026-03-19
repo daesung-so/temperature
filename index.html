@@ -332,11 +332,12 @@ async function handlePhoto(event,floor,unit){
     } else throw new Error('fail');
   } catch(e){
     btn.className='photo-btn'; btn.innerHTML='<span>📷</span> 카메라로 읽기';
-    const msg=e.message||'';
-    if(msg.includes('400')||msg.toLowerCase().includes('api key')) showToast('API 키 오류 — 키를 확인해주세요','err');
+    const msg=e.message||'알 수 없는 오류';
+    console.error('인식 오류:', msg);
+    if(msg.includes('400')||msg.toLowerCase().includes('api key')) showToast('API 키 오류 — 키 확인','err');
     else if(msg.includes('429')) showToast('요청 한도 초과 — 잠시 후 재시도','err');
-    else showToast('인식 실패 — 정면으로 다시 찍어보세요','err');
-    console.error('Gemini error:', msg);
+    else if(msg.includes('이미지')) showToast('이미지 처리 실패: '+msg,'err');
+    else showToast('오류: '+msg.slice(0,50),'err');
   }
 }
 
@@ -346,28 +347,25 @@ function toBase64(file){
   });
 }
 
-// 이미지 전처리: 대비/밝기 강화 후 base64 반환
+// 이미지 전처리: 리사이즈만 (필터 제거 - 모바일 호환성)
 function preprocessImage(file){
   return new Promise((res,rej)=>{
     const url=URL.createObjectURL(file);
     const img=new Image();
     img.onload=()=>{
-      const canvas=document.createElement('canvas');
-      // 최대 1200px로 축소 (너무 크면 API 느림)
-      const MAX=1200;
-      let w=img.width, h=img.height;
-      if(w>MAX||h>MAX){ const s=MAX/Math.max(w,h); w=Math.round(w*s); h=Math.round(h*s); }
-      canvas.width=w; canvas.height=h;
-      const ctx=canvas.getContext('2d');
-      ctx.drawImage(img,0,0,w,h);
-      // 대비 강화 필터
-      ctx.filter='contrast(1.4) brightness(1.1) saturate(0.8)';
-      ctx.drawImage(img,0,0,w,h);
-      URL.revokeObjectURL(url);
-      const data=canvas.toDataURL('image/jpeg',0.92).split(',')[1];
-      res(data);
+      try{
+        const MAX=1200;
+        let w=img.width||800, h=img.height||600;
+        if(w>MAX||h>MAX){ const s=MAX/Math.max(w,h); w=Math.round(w*s); h=Math.round(h*s); }
+        const canvas=document.createElement('canvas');
+        canvas.width=w; canvas.height=h;
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0,w,h);
+        URL.revokeObjectURL(url);
+        res(canvas.toDataURL('image/jpeg',0.92).split(',')[1]);
+      } catch(e){ URL.revokeObjectURL(url); rej(e); }
     };
-    img.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error('img load fail')); };
+    img.onerror=(e)=>{ URL.revokeObjectURL(url); rej(new Error('이미지 로드 실패')); };
     img.src=url;
   });
 }
