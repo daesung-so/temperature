@@ -377,7 +377,7 @@ async function callGemini(b64,mtype){
     method:'POST', headers:{'Content-Type':'application/json'},
     body:JSON.stringify({ contents:[{parts:[
       {inline_data:{mime_type:mtype,data:b64}},
-      {text:'이 사진은 온습도계입니다. 화면에 표시된 숫자를 읽어주세요.\n\n- 온도: "온도" 라고 써있는 옆 숫자 (단위 °C, 보통 10~35 사이)\n- 습도: "습도" 라고 써있는 옆 숫자 (단위 %, 보통 10~99 사이)\n- 사진이 약간 흐리거나 각도가 틀려도 최대한 읽어주세요\n- 숫자가 LED/LCD/디지털 표시여도 읽어주세요\n\nJSON 형식으로만 답하세요 (다른 텍스트 없이):\n{"temp":22.5,"hum":45.2}\n읽을 수 없으면 null.'}
+      {text:'이 사진은 장비실 온습도계(THR-2002 또는 유사 기종)입니다.\n\n기기 특징:\n- 빨간색 LED 7세그먼트 디스플레이\n- 왼쪽 위에 "온도" 텍스트 + 아래 빨간 숫자 (예: 26.9)\n- 오른쪽 위에 "습도" 텍스트 + 아래 빨간 숫자 (예: 44.0)\n- 온도 범위: 10.0 ~ 40.0°C\n- 습도 범위: 10.0 ~ 99.0%\n\n주의:\n- 소수점 포함해서 읽어주세요 (26.9, 44.0 등)\n- 사진이 약간 흐리거나 각도가 있어도 최대한 읽어주세요\n- 아래 ADDR 숫자는 무시하세요\n\nJSON만 반환 (다른 텍스트 절대 없이):\n{"temp":26.9,"hum":44.0}\n읽을 수 없으면 null.'}
     ]}], generationConfig:{maxOutputTokens:80} })
   });
   if(!res.ok){ const e=await res.json().catch(()=>{}); throw new Error(e?.error?.message||res.status); }
