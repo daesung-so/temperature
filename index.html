@@ -377,25 +377,48 @@ async function callGemini(b64,mtype){
     method:'POST', headers:{'Content-Type':'application/json'},
     body:JSON.stringify({ contents:[{parts:[
       {inline_data:{mime_type:mtype,data:b64}},
-      {text:'이 사진은 장비실 온습도계(THR-2002 또는 유사 기종)입니다.\n\n기기 특징:\n- 빨간색 LED 7세그먼트 디스플레이\n- 왼쪽 위에 "온도" 텍스트 + 아래 빨간 숫자 (예: 26.9)\n- 오른쪽 위에 "습도" 텍스트 + 아래 빨간 숫자 (예: 44.0)\n- 온도 범위: 10.0 ~ 40.0°C\n- 습도 범위: 10.0 ~ 99.0%\n\n주의:\n- 소수점 포함해서 읽어주세요 (26.9, 44.0 등)\n- 사진이 약간 흐리거나 각도가 있어도 최대한 읽어주세요\n- 아래 ADDR 숫자는 무시하세요\n\nJSON만 반환 (다른 텍스트 절대 없이):\n{"temp":26.9,"hum":44.0}\n읽을 수 없으면 null.'}
-    ]}], generationConfig:{maxOutputTokens:80} })
+      {text:'이 온습도계 사진에서 온도와 습도 숫자를 읽어주세요.\n왼쪽 빨간 LED가 온도(°C), 오른쪽 빨간 LED가 습도(%)입니다.\nJSON만 반환: {"temp":26.9,"hum":44.0}'}
+    ]}], generationConfig:{maxOutputTokens:120} })
   });
   if(!res.ok){ const e=await res.json().catch(()=>{}); throw new Error(e?.error?.message||res.status); }
   const j=await res.json();
-  const rawText=(j.candidates?.[0]?.content?.parts?.[0]?.text||'');
-  console.log('Gemini 원본 응답:', rawText);
-  // 응답을 토스트로도 잠깐 보여줌 (디버그용)
-  showToast('응답: '+rawText.slice(0,40),'');
-  const cleaned=rawText.replace(/```json|```/g,'').trim();
-  // JSON이 아닌 경우 숫자 직접 추출 시도
-  if(!cleaned.startsWith('{')) {
-    const tMatch=rawText.match(/온도[^\d]*(\d+\.?\d*)/);
-    const hMatch=rawText.match(/습도[^\d]*(\d+\.?\d*)/);
-    const t2=rawText.match(/(\d{2,3}\.\d)/g);
-    if(t2&&t2.length>=2) return {temp:parseFloat(t2[0]),hum:parseFloat(t2[1])};
-    if(tMatch||hMatch) return {temp:tMatch?parseFloat(tMatch[1]):null, hum:hMatch?parseFloat(hMatch[1]):null};
+  const raw=(j.candidates?.[0]?.content?.parts?.[0]?.text||'');
+  console.log('Gemini raw:', raw);
+  return parseFlexible(raw);
+}
+
+function parseFlexible(raw){
+  // 1. 순수 JSON 시도
+  try{
+    const clean=raw.replace(/```json|```/g,'').trim();
+    const parsed=JSON.parse(clean);
+    if(parsed.temp!==undefined||parsed.hum!==undefined) return parsed;
+  }catch(e){}
+
+  // 2. JSON 블록 추출 시도
+  const jsonMatch=raw.match(/\{[^}]*"temp"[^}]*\}/);
+  if(jsonMatch){ try{ return JSON.parse(jsonMatch[0]); }catch(e){} }
+
+  // 3. 숫자 직접 추출 — "온도" 또는 "temp" 뒤 숫자
+  let temp=null, hum=null;
+  const tMatch=raw.match(/(?:온도|temp|temperature)[^\d]*(\d{1,2}\.?\d?)/i);
+  const hMatch=raw.match(/(?:습도|hum|humidity)[^\d]*(\d{2,3}\.?\d?)/i);
+  if(tMatch) temp=parseFloat(tMatch[1]);
+  if(hMatch) hum=parseFloat(hMatch[1]);
+
+  // 4. 숫자 패턴으로 추출 — X.X 형식 두 개
+  if(temp===null||hum===null){
+    const nums=raw.match(/\d{1,2}\.\d/g);
+    if(nums&&nums.length>=2){ temp=parseFloat(nums[0]); hum=parseFloat(nums[1]); }
+    else if(nums&&nums.length===1){
+      const val=parseFloat(nums[0]);
+      if(val>=10&&val<=40) temp=val;
+      else if(val>=10&&val<=99) hum=val;
+    }
   }
-  return JSON.parse(cleaned);
+
+  if(temp!==null||hum!==null) return {temp,hum};
+  throw new Error('fail: '+raw.slice(0,60));
 }
 
 // ── 보고서 생성 ──
