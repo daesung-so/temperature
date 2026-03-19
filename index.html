@@ -320,8 +320,8 @@ async function handlePhoto(event,floor,unit){
   const btn=document.getElementById('pb-'+floor+'-'+unit);
   btn.className='photo-btn loading'; btn.innerHTML='<div class="spinner"></div> 읽는 중...';
   try{
-    const b64=await toBase64(file);
-    const r=await callGemini(b64,file.type);
+    const b64=await preprocessImage(file);
+    const r=await callGemini(b64,'image/jpeg');
     if(r&&(r.temp!==null||r.hum!==null)){
       if(r.temp!==null){ data[floor][unit].temp=r.temp; document.getElementById('temp-'+floor+'-'+unit).value=r.temp; }
       if(r.hum!==null){ data[floor][unit].hum=r.hum; document.getElementById('hum-'+floor+'-'+unit).value=r.hum; }
@@ -346,12 +346,38 @@ function toBase64(file){
   });
 }
 
+// 이미지 전처리: 대비/밝기 강화 후 base64 반환
+function preprocessImage(file){
+  return new Promise((res,rej)=>{
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.createElement('canvas');
+      // 최대 1200px로 축소 (너무 크면 API 느림)
+      const MAX=1200;
+      let w=img.width, h=img.height;
+      if(w>MAX||h>MAX){ const s=MAX/Math.max(w,h); w=Math.round(w*s); h=Math.round(h*s); }
+      canvas.width=w; canvas.height=h;
+      const ctx=canvas.getContext('2d');
+      ctx.drawImage(img,0,0,w,h);
+      // 대비 강화 필터
+      ctx.filter='contrast(1.4) brightness(1.1) saturate(0.8)';
+      ctx.drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);
+      const data=canvas.toDataURL('image/jpeg',0.92).split(',')[1];
+      res(data);
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error('img load fail')); };
+    img.src=url;
+  });
+}
+
 async function callGemini(b64,mtype){
   const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey,{
     method:'POST', headers:{'Content-Type':'application/json'},
     body:JSON.stringify({ contents:[{parts:[
       {inline_data:{mime_type:mtype,data:b64}},
-      {text:'이 사진은 온습도계입니다. 화면에 표시된 온도(°C)와 습도(%) 숫자를 읽어주세요. LCD 숫자, 디지털 숫자, 7세그먼트 디스플레이 모두 인식 가능합니다. 반드시 JSON 형식으로만 답하세요: {"temp":22.5,"hum":45.2} 숫자를 읽을 수 없으면 해당 항목을 null로 하세요. 다른 텍스트는 절대 포함하지 마세요.'}
+      {text:'이 사진은 온습도계입니다. 화면에 표시된 숫자를 읽어주세요.\n\n- 온도: "온도" 라고 써있는 옆 숫자 (단위 °C, 보통 10~35 사이)\n- 습도: "습도" 라고 써있는 옆 숫자 (단위 %, 보통 10~99 사이)\n- 사진이 약간 흐리거나 각도가 틀려도 최대한 읽어주세요\n- 숫자가 LED/LCD/디지털 표시여도 읽어주세요\n\nJSON 형식으로만 답하세요 (다른 텍스트 없이):\n{"temp":22.5,"hum":45.2}\n읽을 수 없으면 null.'}
     ]}], generationConfig:{maxOutputTokens:80} })
   });
   if(!res.ok){ const e=await res.json().catch(()=>{}); throw new Error(e?.error?.message||res.status); }
