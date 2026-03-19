@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>장비실 온습도 점검</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=Pretendard:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0a0e1a; --bg2:#0f1422; --bg3:#141829;
+    --card:#181d2e; --card2:#1e2438;
+    --border:#252c42; --border2:#2e3650;
+    --text:#e2e8f5; --text2:#8a95b0; --text3:#5a647a;
+    --cyan:#38bdf8; --cyan2:#0ea5e9; --cyan-dim:rgba(56,189,248,.12);
+    --green:#4ade80; --green-dim:rgba(74,222,128,.1);
+    --red:#f87171; --red-dim:rgba(248,113,113,.1);
+    --yellow:#fbbf24; --yellow-dim:rgba(251,191,36,.1);
+    --r:10px; --rs:6px;
+    --mono:'Geist Mono',monospace; --sans:'Pretendard',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden}
+
+  .header{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 16px 0;position:sticky;top:0;z-index:100}
+  .header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .app-title{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--cyan);letter-spacing:.08em}
+  .app-title span{color:var(--text3);font-weight:400}
+  .meta-row{display:flex;gap:8px;margin-bottom:12px}
+  .meta-field{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:var(--rs);padding:6px 10px;flex:1}
+  .meta-label{font-size:10px;color:var(--text3);font-family:var(--mono);white-space:nowrap}
+  .meta-input{background:none;border:none;color:var(--text);font-family:var(--mono);font-size:12px;width:100%;outline:none}
+  .meta-input::placeholder{color:var(--text3)}
+  select.meta-input option{background:var(--card)}
+  .floor-tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;padding-bottom:1px}
+  .floor-tabs::-webkit-scrollbar{display:none}
+  .tab{padding:8px 16px;font-family:var(--mono);font-size:12px;font-weight:500;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .15s;user-select:none}
+  .tab.active{color:var(--cyan);border-bottom-color:var(--cyan)}
+  .tab .badge{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;font-size:9px;margin-left:5px;background:var(--green-dim);color:var(--green);vertical-align:middle}
+  .tab .badge.warn{background:var(--red-dim);color:var(--red)}
+
+  .main{padding:14px 12px 100px}
+  .floor-panel{display:none}
+  .floor-panel.active{display:block}
+  .units-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  @media(min-width:480px){.units-grid{grid-template-columns:repeat(3,1fr)}}
+
+  .unit-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px;transition:border-color .15s}
+  .unit-card.ok{border-color:rgba(74,222,128,.3)}
+  .unit-card.bad{border-color:rgba(248,113,113,.35)}
+  .unit-name{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+  .unit-status{font-size:9px;padding:2px 6px;border-radius:3px;font-weight:500}
+  .unit-status.ok{background:var(--green-dim);color:var(--green)}
+  .unit-status.bad{background:var(--red-dim);color:var(--red)}
+  .sensor-inputs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+  .sensor-field{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:7px 8px;transition:border-color .15s}
+  .sensor-field:focus-within{border-color:var(--cyan2)}
+  .sensor-label{font-size:9px;color:var(--text3);font-family:var(--mono);margin-bottom:2px}
+  .sensor-input{background:none;border:none;color:var(--cyan);font-family:var(--mono);font-size:16px;font-weight:500;width:100%;outline:none;-moz-appearance:textfield}
+  .sensor-input::-webkit-outer-spin-button,.sensor-input::-webkit-inner-spin-button{-webkit-appearance:none}
+  .sensor-input::placeholder{color:var(--text3);font-size:14px}
+  .sensor-unit{font-family:var(--mono);font-size:9px;color:var(--text3)}
+
+  .photo-btn{width:100%;padding:7px;background:var(--bg);border:1px dashed var(--border2);border-radius:var(--rs);color:var(--text3);font-family:var(--sans);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .15s}
+  .photo-btn.loading{border-color:var(--yellow);color:var(--yellow);background:var(--yellow-dim);pointer-events:none;border-style:solid}
+  .photo-btn.success{border-color:var(--green);color:var(--green);background:var(--green-dim);border-style:solid}
+  input[type="file"]{display:none}
+  .spinner{width:12px;height:12px;border:2px solid transparent;border-top-color:currentColor;border-radius:50%;animation:spin .6s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .bottom-bar{position:fixed;bottom:0;left:0;right:0;background:var(--bg2);border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:8px;align-items:center;z-index:100}
+  .progress-wrap{flex:1;min-width:0}
+  .progress-label{font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:4px;display:flex;justify-content:space-between}
+  .progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--cyan2),var(--cyan));border-radius:2px;transition:width .3s}
+  .send-btn{padding:10px 16px;background:var(--cyan2);border:none;border-radius:var(--rs);color:#fff;font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s}
+  .send-btn:disabled{background:var(--border2);color:var(--text3);cursor:not-allowed}
+
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:flex-end;justify-content:center}
+  .modal-overlay.open{display:flex}
+  .modal{background:var(--bg2);border:1px solid var(--border2);border-radius:16px 16px 0 0;padding:24px 16px 36px;width:100%;max-width:480px;animation:up .25s ease}
+  @keyframes up{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  .modal-title{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
+  .modal-sub{font-size:11px;color:var(--text3);margin-bottom:20px;font-family:var(--mono)}
+  .modal-btns{display:flex;flex-direction:column;gap:8px}
+  .mbt{padding:14px;border-radius:var(--rs);font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+  .mbt.primary{background:var(--cyan2);color:#fff;font-size:13px}
+  .mbt.secondary{background:var(--card2);color:var(--text2);border:1px solid var(--border2)}
+  .modal-hint{margin-top:16px;font-size:10px;color:var(--text3);font-family:var(--mono);line-height:1.9;text-align:center;background:var(--bg3);border-radius:var(--rs);padding:10px}
+
+  .toast{position:fixed;top:70px;left:50%;transform:translateX(-50%) translateY(-10px);background:var(--card2);border:1px solid var(--border2);border-radius:20px;padding:8px 16px;font-family:var(--mono);font-size:11px;color:var(--text);z-index:300;opacity:0;pointer-events:none;transition:all .2s;white-space:nowrap}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.ok{border-color:var(--green);color:var(--green)}
+  .toast.err{border-color:var(--red);color:var(--red)}
+
+  .apikey-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center}
+  .apikey-icon{font-size:40px;margin-bottom:16px}
+  .apikey-title{font-family:var(--mono);font-size:15px;font-weight:600;color:var(--cyan);margin-bottom:6px}
+  .apikey-desc{font-size:12px;color:var(--text3);margin-bottom:20px;line-height:1.9;max-width:300px}
+  .apikey-step{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;width:100%;max-width:360px;margin-bottom:16px;text-align:left}
+  .apikey-step-title{font-family:var(--mono);font-size:10px;color:var(--cyan);margin-bottom:8px;letter-spacing:.06em}
+  .apikey-step ol{padding-left:16px;font-size:11px;color:var(--text2);line-height:2.2}
+  .apikey-step a{color:var(--cyan);text-decoration:none}
+  .apikey-input-wrap{background:var(--card);border:1px solid var(--border2);border-radius:var(--r);padding:12px 14px;width:100%;max-width:360px;margin-bottom:10px}
+  .apikey-input{background:none;border:none;color:var(--text);font-family:var(--mono);font-size:12px;width:100%;outline:none}
+  .apikey-input::placeholder{color:var(--text3)}
+  .apikey-btn{padding:12px;background:var(--cyan2);border:none;border-radius:var(--rs);color:#fff;font-family:var(--mono);font-size:13px;font-weight:600;cursor:pointer;width:100%;max-width:360px;margin-bottom:10px;transition:background .15s}
+  .apikey-btn:hover{background:var(--cyan)}
+  .apikey-skip{font-size:11px;color:var(--text3);cursor:pointer;text-decoration:underline}
+</style>
+</head>
+<body>
+
+<div class="apikey-screen" id="apikeyScreen">
+  <div class="apikey-icon">🌡</div>
+  <div class="apikey-title">장비실 온습도 점검</div>
+  <div class="apikey-desc">사진 자동 인식을 사용하려면<br>Google Gemini API 키가 필요합니다.<br><b style="color:var(--green)">무료</b> · 하루 1,500회 제공</div>
+  <div style="background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:var(--r);padding:10px 14px;width:100%;max-width:360px;margin-bottom:16px;font-size:11px;color:var(--text2);line-height:1.8;text-align:left">
+    💡 <b style="color:var(--cyan)">팀 공용 사용법</b><br>
+    관리자가 키 1개 발급 → 팀원들에게 공유<br>
+    각자 처음 1회만 입력하면 <b>자동 저장</b>돼요
+  </div>
+  <div class="apikey-step">
+    <div class="apikey-step-title">▸ 무료 API 키 발급</div>
+    <ol>
+      <li><a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a> 접속</li>
+      <li>구글 계정으로 로그인</li>
+      <li>좌측 <b>Get API Key</b> 클릭</li>
+      <li><b>Create API Key</b> → 복사</li>
+    </ol>
+  </div>
+  <div class="apikey-input-wrap">
+    <input class="apikey-input" id="apikeyInput" type="password" placeholder="AIza... 붙여넣기">
+  </div>
+  <button class="apikey-btn" id="apikeyBtn">저장하고 시작</button>
+  <div class="apikey-skip" id="apikeySkip">수동 입력만 사용 (사진 인식 없음)</div>
+</div>
+
+<div id="appMain" style="display:none">
+  <div class="header">
+    <div class="header-top">
+      <div class="app-title">🌡 온습도 점검 <span>/ 성수SO팀</span></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3)" id="dateLabel"></div>
+        <button onclick="resetKey()" style="background:none;border:1px solid var(--border);border-radius:4px;color:var(--text3);font-size:9px;font-family:var(--mono);padding:3px 7px;cursor:pointer" title="API 키 초기화">키 변경</button>
+      </div>
+    </div>
+    <div class="meta-row">
+      <div class="meta-field">
+        <span class="meta-label">점검자</span>
+        <input class="meta-input" id="inspector" type="text" placeholder="이름">
+      </div>
+      <div class="meta-field" style="flex:0.6">
+        <span class="meta-label">구분</span>
+        <select class="meta-input" id="shift">
+          <option value="주간">주간</option>
+          <option value="야간">야간</option>
+        </select>
+      </div>
+    </div>
+    <div class="floor-tabs" id="floorTabs"></div>
+  </div>
+
+  <div class="main" id="mainContent"></div>
+
+  <div class="bottom-bar">
+    <div class="progress-wrap">
+      <div class="progress-label">
+        <span>진행률</span>
+        <span id="progressText">0 / 0</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    </div>
+    <button class="send-btn" id="sendBtn" disabled>📤 보고서 전송</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="sendModal">
+  <div class="modal">
+    <div class="modal-title">📤 보고서 전송</div>
+    <div class="modal-sub" id="modalSub"></div>
+    <div class="modal-btns">
+      <button class="mbt primary" id="btnShare">✉️ 이메일 앱으로 보내기</button>
+      <button class="mbt secondary" id="btnDownload">💾 파일로 저장</button>
+      <button class="mbt secondary" id="btnClose">닫기</button>
+    </div>
+    <div class="modal-hint">
+      📱 "이메일 앱으로 보내기" 탭<br>
+      → 사내 메일 앱 선택 후 전송<br>
+      💻 PC에서 메일 열기 → <b>Ctrl+P</b> 인쇄
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const FLOORS = {
+  '2층':{ units:[0,1,2,3,4,5,6,7] },
+  '3층':{ units:[0,1,2,3] },
+  '5층':{ units:[0,1,2,3] },
+  '6층':{ units:[0,1,2,4,5,6,7] },
+  '8층':{ units:[0,1,2,3] }
+};
+const LIM = { tMin:21, tMax:27, hMin:30, hMax:70 };
+
+let apiKey='', curFloor='2층';
+let data={};
+Object.keys(FLOORS).forEach(f=>{ data[f]={}; FLOORS[f].units.forEach(u=>{ data[f][u]={temp:'',hum:''}; }); });
+
+function init(){
+  const now=new Date(), days=['일','월','화','수','목','금','토'];
+  document.getElementById('dateLabel').textContent=(now.getMonth()+1)+'/'+now.getDate()+'('+days[now.getDay()]+')';
+  buildTabs(); buildPanels(); updateProgress();
+}
+
+function buildTabs(){
+  const el=document.getElementById('floorTabs'); el.innerHTML='';
+  Object.keys(FLOORS).forEach(f=>{
+    const t=document.createElement('div');
+    t.className='tab'+(f===curFloor?' active':'');
+    t.id='tab-'+f; t.onclick=()=>switchFloor(f);
+    t.innerHTML=f+'<span class="badge" id="badge-'+f+'">0</span>';
+    el.appendChild(t);
+  });
+}
+
+function buildPanels(){
+  const main=document.getElementById('mainContent'); main.innerHTML='';
+  Object.keys(FLOORS).forEach(f=>{
+    const p=document.createElement('div');
+    p.className='floor-panel'+(f===curFloor?' active':''); p.id='panel-'+f;
+    const g=document.createElement('div'); g.className='units-grid';
+    FLOORS[f].units.forEach(u=>g.appendChild(buildCard(f,u)));
+    p.appendChild(g); main.appendChild(p);
+  });
+}
+
+function buildCard(floor,unit){
+  const card=document.createElement('div');
+  card.className='unit-card'; card.id='card-'+floor+'-'+unit;
+  const fid='file-'+floor+'-'+unit;
+  card.innerHTML=
+    '<div class="unit-name">'+
+      '<span>'+unit+'호기</span>'+
+      '<span class="unit-status" id="st-'+floor+'-'+unit+'" style="display:none"></span>'+
+    '</div>'+
+    '<div class="sensor-inputs">'+
+      '<div class="sensor-field">'+
+        '<div class="sensor-label">온도 <span class="sensor-unit">°C</span></div>'+
+        '<input class="sensor-input" id="temp-'+floor+'-'+unit+'" type="number" step="0.1" min="0" max="50" placeholder="--.-">'+
+      '</div>'+
+      '<div class="sensor-field">'+
+        '<div class="sensor-label">습도 <span class="sensor-unit">%</span></div>'+
+        '<input class="sensor-input" id="hum-'+floor+'-'+unit+'" type="number" step="0.1" min="0" max="100" placeholder="--.-">'+
+      '</div>'+
+    '</div>'+
+    '<input type="file" id="'+fid+'" accept="image/*" capture="environment">'+
+    '<label for="'+fid+'" class="photo-btn" id="pb-'+floor+'-'+unit+'">'+
+      '<span>📷</span> 카메라로 읽기'+
+    '</label>';
+
+  card.querySelector('#temp-'+floor+'-'+unit).addEventListener('input',function(){ onInput(floor,unit,'temp',this.value); });
+  card.querySelector('#hum-'+floor+'-'+unit).addEventListener('input',function(){ onInput(floor,unit,'hum',this.value); });
+  card.querySelector('#'+fid).addEventListener('change',function(e){ handlePhoto(e,floor,unit); });
+  card.querySelector('#pb-'+floor+'-'+unit).addEventListener('click',function(e){
+    if(!apiKey){ e.preventDefault(); showToast('수동 입력 모드 — API 키 없음','err'); }
+  });
+  return card;
+}
+
+function switchFloor(f){
+  document.querySelector('.tab.active')?.classList.remove('active');
+  document.querySelector('.floor-panel.active')?.classList.remove('active');
+  curFloor=f;
+  document.getElementById('tab-'+f)?.classList.add('active');
+  document.getElementById('panel-'+f)?.classList.add('active');
+}
+
+function onInput(floor,unit,field,value){
+  data[floor][unit][field]=value;
+  updateCard(floor,unit); updateBadge(floor); updateProgress();
+}
+
+function updateCard(floor,unit){
+  const d=data[floor][unit];
+  const card=document.getElementById('card-'+floor+'-'+unit);
+  const st=document.getElementById('st-'+floor+'-'+unit);
+  if(!d.temp&&!d.hum){ card.className='unit-card'; st.style.display='none'; return; }
+  if(d.temp&&d.hum){
+    const ok=+d.temp>=LIM.tMin&&+d.temp<=LIM.tMax&&+d.hum>=LIM.hMin&&+d.hum<=LIM.hMax;
+    card.className='unit-card '+(ok?'ok':'bad');
+    st.className='unit-status '+(ok?'ok':'bad');
+    st.textContent=ok?'양호':'불량'; st.style.display='';
+  }
+}
+
+function updateBadge(floor){
+  const badge=document.getElementById('badge-'+floor);
+  const filled=FLOORS[floor].units.filter(u=>data[floor][u].temp!==''&&data[floor][u].hum!=='').length;
+  badge.textContent=filled;
+  const hasBad=FLOORS[floor].units.some(u=>{
+    const d=data[floor][u]; if(!d.temp||!d.hum) return false;
+    return +d.temp<LIM.tMin||+d.temp>LIM.tMax||+d.hum<LIM.hMin||+d.hum>LIM.hMax;
+  });
+  badge.className='badge'+(hasBad?' warn':'');
+}
+
+function updateProgress(){
+  let filled=0,total=0;
+  Object.keys(FLOORS).forEach(f=>FLOORS[f].units.forEach(u=>{ total++; if(data[f][u].temp!==''&&data[f][u].hum!=='') filled++; }));
+  document.getElementById('progressText').textContent=filled+' / '+total;
+  document.getElementById('progressFill').style.width=(total>0?(filled/total)*100:0)+'%';
+  document.getElementById('sendBtn').disabled=filled===0;
+}
+
+// ── 사진 인식 ──
+async function handlePhoto(event,floor,unit){
+  const file=event.target.files[0]; if(!file) return;
+  event.target.value='';
+  const btn=document.getElementById('pb-'+floor+'-'+unit);
+  btn.className='photo-btn loading'; btn.innerHTML='<div class="spinner"></div> 읽는 중...';
+  try{
+    const b64=await toBase64(file);
+    const r=await callGemini(b64,file.type);
+    if(r&&(r.temp!==null||r.hum!==null)){
+      if(r.temp!==null){ data[floor][unit].temp=r.temp; document.getElementById('temp-'+floor+'-'+unit).value=r.temp; }
+      if(r.hum!==null){ data[floor][unit].hum=r.hum; document.getElementById('hum-'+floor+'-'+unit).value=r.hum; }
+      updateCard(floor,unit); updateBadge(floor); updateProgress();
+      btn.className='photo-btn success'; btn.innerHTML='✓ '+(r.temp??'--')+'°C / '+(r.hum??'--')+'%';
+      setTimeout(()=>{ btn.className='photo-btn'; btn.innerHTML='<span>📷</span> 카메라로 읽기'; },2500);
+      showToast(unit+'호기 인식 완료 ✓','ok');
+    } else throw new Error('fail');
+  } catch(e){
+    btn.className='photo-btn'; btn.innerHTML='<span>📷</span> 카메라로 읽기';
+    showToast('인식 실패 — 수동 입력해주세요','err');
+  }
+}
+
+function toBase64(file){
+  return new Promise((res,rej)=>{
+    const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(file);
+  });
+}
+
+async function callGemini(b64,mtype){
+  const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ contents:[{parts:[
+      {inline_data:{mime_type:mtype,data:b64}},
+      {text:'온습도계 사진에서 온도와 습도 숫자를 읽어 JSON만 반환: {"temp":22.5,"hum":45.2} 못 읽으면 null'}
+    ]}], generationConfig:{maxOutputTokens:80} })
+  });
+  if(!res.ok){ const e=await res.json().catch(()=>{}); throw new Error(e?.error?.message||res.status); }
+  const j=await res.json();
+  return JSON.parse((j.candidates?.[0]?.content?.parts?.[0]?.text||'').replace(/```json|```/g,'').trim());
+}
+
+// ── 보고서 생성 ──
+function buildReport(){
+  const now=new Date(), days=['일','월','화','수','목','금','토'];
+  const inspector=document.getElementById('inspector').value||'(미입력)';
+  const shift=document.getElementById('shift').value;
+  const dateStr=now.getFullYear()+'년 '+(now.getMonth()+1)+'월 '+now.getDate()+'일 ('+days[now.getDay()]+')';
+
+  let tables='';
+  Object.keys(FLOORS).forEach(floor=>{
+    const units=FLOORS[floor].units;
+    if(!units.some(u=>data[floor][u].temp!==''||data[floor][u].hum!=='')) return;
+    let rows='';
+    units.forEach(u=>{
+      const d=data[floor][u];
+      const t=d.temp!==''?parseFloat(d.temp).toFixed(1):'-';
+      const h=d.hum!==''?parseFloat(d.hum).toFixed(1):'-';
+      let rc='',rt='-';
+      if(d.temp!==''&&d.hum!==''){
+        const ok=+d.temp>=LIM.tMin&&+d.temp<=LIM.tMax&&+d.hum>=LIM.hMin&&+d.hum<=LIM.hMax;
+        rc=ok?'ok':'bad'; rt=ok?'양호':'불량';
+      }
+      const tbad=d.temp!==''&&(+d.temp<LIM.tMin||+d.temp>LIM.tMax)?'bad':'';
+      const hbad=d.hum!==''&&(+d.hum<LIM.hMin||+d.hum>LIM.hMax)?'bad':'';
+      rows+='<tr><td class="ul">'+u+'호기</td><td class="num '+tbad+'">'+t+'</td><td class="num '+hbad+'">'+h+'</td><td class="res '+rc+'">'+rt+'</td></tr>';
+    });
+    const temps=units.filter(u=>data[floor][u].temp!=='').map(u=>parseFloat(data[floor][u].temp)).filter(v=>!isNaN(v));
+    const hums=units.filter(u=>data[floor][u].hum!=='').map(u=>parseFloat(data[floor][u].hum)).filter(v=>!isNaN(v));
+    const aT=temps.length?(temps.reduce((a,b)=>a+b)/temps.length).toFixed(1):'-';
+    const mxT=temps.length?Math.max(...temps).toFixed(1):'-';
+    const aH=hums.length?(hums.reduce((a,b)=>a+b)/hums.length).toFixed(1):'-';
+    const mnH=hums.length?Math.min(...hums).toFixed(1):'-';
+    tables+='<div class="fs"><div class="ft">'+floor+'</div>'+
+      '<table><thead><tr><th>호기</th><th>온도(°C)</th><th>습도(%)</th><th>결과</th></tr></thead>'+
+      '<tbody>'+rows+'</tbody>'+
+      '<tfoot><tr><td class="ul" style="color:#666;font-size:10px">요약</td>'+
+      '<td class="num" style="font-size:10px">평균 '+aT+'<br>최고 '+mxT+'</td>'+
+      '<td class="num" style="font-size:10px">평균 '+aH+'<br>최저 '+mnH+'</td>'+
+      '<td></td></tr></tfoot></table></div>';
+  });
+
+  return '<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">'+
+    '<meta name="viewport" content="width=device-width,initial-scale=1">'+
+    '<title>온습도 점검 보고서</title><style>'+
+    '@media print{.no-print{display:none}@page{size:A4;margin:15mm}}'+
+    'body{font-family:"Malgun Gothic","맑은 고딕",sans-serif;font-size:12px;color:#111;padding:20px 24px;max-width:780px;margin:0 auto}'+
+    'h1{font-size:15px;text-align:center;border-bottom:2px solid #1a56db;padding-bottom:8px;margin-bottom:12px;color:#1a3a6b}'+
+    '.meta{display:flex;justify-content:space-between;font-size:11px;color:#555;padding:6px 2px;border-bottom:1px solid #e0e0e0;margin-bottom:18px}'+
+    '.fs{margin-bottom:18px;break-inside:avoid}'+
+    '.ft{font-size:12px;font-weight:700;background:#e8f0fe;padding:5px 10px;border-left:4px solid #1a56db;margin-bottom:3px;color:#1a3a6b}'+
+    'table{width:100%;border-collapse:collapse;font-size:11px}'+
+    'th{background:#1a56db;color:#fff;padding:6px 8px;text-align:center;border:1px solid #1244b8;font-weight:600}'+
+    'td{padding:5px 8px;border:1px solid #d0d0d0;text-align:center}'+
+    '.ul{text-align:left;font-weight:600;background:#fafafa}'+
+    '.num{font-family:"Courier New",monospace}'+
+    '.ok{color:#15803d;font-weight:700}'+
+    '.bad{color:#dc2626;font-weight:700;background:#fff1f2}'+
+    '.res{font-weight:700}'+
+    'tfoot td{background:#f5f5f5}'+
+    '.pbtn{display:block;margin:20px auto 0;padding:11px 40px;background:#1a56db;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit}'+
+    '</style></head><body>'+
+    '<h1>■ 장비실 온·습도 환경점검 결과</h1>'+
+    '<div class="meta"><span>점검일: '+dateStr+'</span><span>구분: '+shift+'</span><span>점검자: '+inspector+'</span></div>'+
+    tables+
+    '<button class="pbtn no-print" onclick="window.print()">🖨 인쇄 / PDF 저장</button>'+
+    '</body></html>';
+}
+
+// ── 전송 ──
+function openSendModal(){
+  const now=new Date(), inspector=document.getElementById('inspector').value||'(미입력)', shift=document.getElementById('shift').value;
+  document.getElementById('modalSub').textContent=(now.getMonth()+1)+'/'+now.getDate()+' '+shift+' · '+inspector;
+  document.getElementById('sendModal').classList.add('open');
+}
+function closeModal(){ document.getElementById('sendModal').classList.remove('open'); }
+
+async function shareReport(){
+  const html=buildReport();
+  const now=new Date();
+  const fname='온습도점검_'+(now.getMonth()+1)+now.getDate()+'_'+document.getElementById('shift').value+'.html';
+  const file=new File([html],fname,{type:'text/html'});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file],title:'온습도 점검 보고서'}); closeModal(); return; }
+    catch(e){ if(e.name==='AbortError'){ closeModal(); return; } }
+  }
+  // 공유 미지원 → 다운로드
+  downloadFile(html,fname);
+  closeModal();
+}
+
+function downloadFile(html,fname){
+  if(!html){ html=buildReport(); }
+  const now=new Date();
+  if(!fname) fname='온습도점검_'+(now.getMonth()+1)+now.getDate()+'.html';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([html],{type:'text/html'}));
+  a.download=fname; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  showToast('파일 저장 완료','ok');
+  closeModal();
+}
+
+let tTimer;
+function showToast(msg,type){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className='toast show '+(type||'');
+  clearTimeout(tTimer); tTimer=setTimeout(()=>{ el.className='toast'; },2800);
+}
+
+// ── API KEY ──
+function saveApiKey(){
+  const v=document.getElementById('apikeyInput').value.trim();
+  if(!v){ showToast('키를 입력해주세요','err'); return; }
+  apiKey=v;
+  try{ localStorage.setItem('gemini_key',v); } catch(e){}
+  startApp();
+}
+function skipApiKey(){ apiKey=''; startApp(); }
+function startApp(){
+  document.getElementById('apikeyScreen').style.display='none';
+  document.getElementById('appMain').style.display='block';
+  init();
+  if(!apiKey) showToast('수동 입력 모드','');
+  else showToast('준비 완료 ✓','ok');
+}
+function resetKey(){
+  try{ localStorage.removeItem('gemini_key'); } catch(e){}
+  location.reload();
+}
+
+// 저장된 키 자동 로드 — 두 번째부터는 키 입력 화면 스킵
+(function(){
+  try{
+    const saved=localStorage.getItem('gemini_key');
+    if(saved){ apiKey=saved; startApp(); return; }
+  } catch(e){}
+})();
+
+document.getElementById('apikeyBtn').addEventListener('click',saveApiKey);
+document.getElementById('apikeySkip').addEventListener('click',skipApiKey);
+document.getElementById('apikeyInput').addEventListener('keydown',e=>{ if(e.key==='Enter') saveApiKey(); });
+document.getElementById('sendBtn').addEventListener('click',openSendModal);
+document.getElementById('btnShare').addEventListener('click',shareReport);
+document.getElementById('btnDownload').addEventListener('click',()=>downloadFile());
+document.getElementById('btnClose').addEventListener('click',closeModal);
+document.getElementById('sendModal').addEventListener('click',function(e){ if(e.target===this) closeModal(); });
+</script>
+</body>
+</html>
