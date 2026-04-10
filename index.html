@@ -221,19 +221,6 @@ select.meta-input option{background:var(--card)}
   </div>
 </div>
 
-<!-- SAVE MODAL -->
-<div class="modal-overlay" id="saveModal">
-  <div class="modal">
-    <div class="modal-title">☁ JSONBin에 저장</div>
-    <div class="modal-sub" id="modalSub"></div>
-    <div class="modal-btns">
-      <button class="mbt primary" id="btnSaveNew">✚ 새 점검으로 저장</button>
-      <button class="mbt danger" id="btnSaveOverwrite">♻ 기존 오늘 데이터 덮어쓰기</button>
-      <button class="mbt secondary" id="btnSaveCancel">취소</button>
-    </div>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <script>
@@ -387,26 +374,11 @@ function updateProgress(){
 }
 
 // ── JSONBIN SAVE ──
-document.getElementById('saveBtn').addEventListener('click', openSaveModal);
-document.getElementById('btnSaveNew').addEventListener('click', ()=>saveToBin(false));
-document.getElementById('btnSaveOverwrite').addEventListener('click', ()=>saveToBin(true));
-document.getElementById('btnSaveCancel').addEventListener('click', ()=>closeModal('saveModal'));
+document.getElementById('saveBtn').addEventListener('click', ()=>saveToBin(true));
 
-function openSaveModal(){
-  const now=new Date();
-  const tv=document.getElementById('shift').value;
-  const sl=(tv==='22'?'야간':'주간');
-  const et='';
-  document.getElementById('modalSub').textContent=
-    (now.getMonth()+1)+'월 '+now.getDate()+'일 · '+
-    tv+':00'+(et?' ~ '+et:'')+'('+sl+') · '+
-    (document.getElementById('inspector').value||'(미입력)');
-  document.getElementById('saveModal').classList.add('open');
-}
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 
 async function saveToBin(overwrite){
-  closeModal('saveModal');
   const now=new Date(), days=['일','월','화','수','목','금','토'];
   const inspector=document.getElementById('inspector').value||'(미입력)';
   const shift=document.getElementById('shift').value;
@@ -426,7 +398,7 @@ async function saveToBin(overwrite){
     floors: JSON.parse(JSON.stringify(data))
   };
 
-  showToast('저장 중...','warn');
+  showToast('클라우드 저장 중...','warn');
   try{
     // 현재 bin 데이터 읽기
     const res=await fetch(JSONBIN+'/'+jbBin+'/latest',{
@@ -457,10 +429,10 @@ async function saveToBin(overwrite){
       body:JSON.stringify(records)
     });
     if(!saveRes.ok) throw new Error(saveRes.status);
-    showToast('저장 완료 ✓','ok');
+    showToast('클라우드 저장 완료 ✓','ok');
     binData=records;
   } catch(e){
-    showToast('저장 실패: '+e.message,'err');
+    showToast('클라우드 저장 실패: '+e.message,'err');
     console.error(e);
   }
 }
@@ -903,7 +875,6 @@ function showToast(msg,type){
 }
 
 // 모달 오버레이 클릭
-document.getElementById('saveModal').addEventListener('click',function(e){ if(e.target===this) closeModal('saveModal'); });
 </script>
 </body>
 </html>
