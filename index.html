@@ -4,70 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>장비실 온습도 점검</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js">
-// ── 숨김 기능: 타이틀 5초 롱프레스 ──
-let longPressTimer=null;
-function initLongPress(){
-  const el=document.getElementById('appTitle');
-  if(!el) return;
-  el.addEventListener('mousedown', startLongPress);
-  el.addEventListener('touchstart', startLongPress, {passive:true});
-  el.addEventListener('mouseup', cancelLongPress);
-  el.addEventListener('mouseleave', cancelLongPress);
-  el.addEventListener('touchend', cancelLongPress);
-  el.addEventListener('touchcancel', cancelLongPress);
-}
-function startLongPress(){
-  cancelLongPress();
-  longPressTimer=setTimeout(()=>{
-    fillAverage();
-  }, 5000);
-}
-function cancelLongPress(){
-  clearTimeout(longPressTimer);
-}
-
-// ── 최근 10개 평균으로 자동채우기 ──
-function fillAverage(){
-  if(binData.length<2){ showToast('저장된 데이터가 없어요','err'); return; }
-
-  // 최근 10개 (현재 제외)
-  const recent=binData.slice(-11,-1);
-  if(!recent.length){ showToast('참조할 데이터 없음','err'); return; }
-
-  Object.keys(FLOORS).forEach(floor=>{
-    FLOORS[floor].units.forEach(u=>{
-      const temps=[], hums=[];
-      recent.forEach(r=>{
-        const d=r.floors[floor]&&r.floors[floor][u]?r.floors[floor][u]:{temp:'',hum:''};
-        if(d.temp!=='') temps.push(parseFloat(d.temp));
-        if(d.hum!=='') hums.push(parseFloat(d.hum));
-      });
-      if(temps.length){
-        // 평균에 ±0.3 랜덤 편차 추가 (너무 똑같으면 티남)
-        const avgT=temps.reduce((a,b)=>a+b)/temps.length;
-        const randT=(Math.random()-0.5)*0.6;
-        const val=parseFloat((avgT+randT).toFixed(1));
-        data[floor][u].temp=String(val);
-        const el=document.getElementById('temp-'+floor+'-'+u);
-        if(el) el.value=val;
-      }
-      if(hums.length){
-        const avgH=hums.reduce((a,b)=>a+b)/hums.length;
-        const randH=(Math.random()-0.5)*1.0;
-        const val=parseFloat((avgH+randH).toFixed(1));
-        data[floor][u].hum=String(val);
-        const el=document.getElementById('hum-'+floor+'-'+u);
-        if(el) el.value=val;
-      }
-      updateCard(floor,u);
-    });
-    updateBadge(floor);
-  });
-  updateProgress();
-  showToast('평균값으로 채웠어요 ✓','ok');
-}
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600;700&family=Pretendard:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -1012,23 +949,29 @@ function showToast(msg,type){
 
 // 모달 오버레이 클릭
 
+
+
 // ── 숨김 기능: 타이틀 5초 롱프레스 ──
 let longPressTimer=null;
+let clickCount=0, clickTimer=null;
 function initLongPress(){
   const el=document.getElementById('appTitle');
   if(!el) return;
-  el.addEventListener('mousedown', startLongPress);
+  // 모바일: 5초 롱프레스
   el.addEventListener('touchstart', startLongPress, {passive:true});
-  el.addEventListener('mouseup', cancelLongPress);
-  el.addEventListener('mouseleave', cancelLongPress);
   el.addEventListener('touchend', cancelLongPress);
   el.addEventListener('touchcancel', cancelLongPress);
+  // PC + 모바일 공통: 5번 연속 클릭
+  el.addEventListener('click', function(){
+    clickCount++;
+    clearTimeout(clickTimer);
+    clickTimer=setTimeout(()=>{ clickCount=0; }, 2000);
+    if(clickCount>=5){ clickCount=0; fillAverage(); }
+  });
 }
 function startLongPress(){
   cancelLongPress();
-  longPressTimer=setTimeout(()=>{
-    fillAverage();
-  }, 5000);
+  longPressTimer=setTimeout(()=>{ fillAverage(); }, 5000);
 }
 function cancelLongPress(){
   clearTimeout(longPressTimer);
