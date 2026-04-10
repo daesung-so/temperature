@@ -355,7 +355,14 @@ function switchFloor(f){
 }
 
 // ── INPUT ──
-function onInput(floor,unit,field,value){
+function onInput(floor,unit,field,rawValue){
+  let value=rawValue;
+  // 소수점 없이 3자리 이상 입력하면 자동 변환 (207 → 20.7)
+  if(rawValue!==''&&!rawValue.includes('.')&&rawValue.length>=3){
+    value=(parseFloat(rawValue)/10).toFixed(1);
+    const el=document.getElementById(field+'-'+floor+'-'+unit);
+    if(el){ el.value=value; }
+  }
   data[floor][unit][field]=value;
   updateCard(floor,unit); updateBadge(floor); updateProgress();
 }
