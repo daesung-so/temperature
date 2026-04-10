@@ -217,7 +217,7 @@ select.meta-input option{background:var(--card)}
         <button class="dl-btn" id="btnReport" onclick="printReport()" disabled style="background:var(--cyan2);color:#fff">🖨 보고서 출력</button>
         <label class="dl-btn" id="btnUpdate" style="background:var(--green);cursor:pointer;opacity:0.4" title="기존 xlsx 업로드 후 새 행 추가">
           ⬆ 기존 엑셀 업데이트
-          <input type="file" id="xlsxUpload" accept=".xlsx" style="display:none">
+          <input type="file" id="xlsxUpload" accept=".xlsx,.xlsm" style="display:none">
         </label>
       </div>
     </div>
@@ -782,10 +782,14 @@ document.getElementById('xlsxUpload').addEventListener('change', async function(
 
     // 다운로드
     const outBuf=await wb.xlsx.writeBuffer();
-    const blob=new Blob([outBuf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const mimeType=origExt.toLowerCase()==='.xlsm'
+      ?'application/vnd.ms-excel.sheet.macroEnabled.12'
+      :'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const blob=new Blob([outBuf],{type:mimeType});
     // 원본 파일명에서 시간 부분만 선택한 시간대로 교체
-    const origName=file.name.replace(/\.xlsx$/i,'');
-    const newName=origName.replace(/_\d{1,2}시$/, '_'+latest.timeVal+'시')+'.xlsx';
+    const origExt=file.name.match(/\.(xlsx|xlsm)$/i)?.[0]||'.xlsx';
+    const origName=file.name.replace(/\.(xlsx|xlsm)$/i,'');
+    const newName=origName.replace(/_\d{1,2}시$/, '_'+latest.timeVal+'시')+origExt;
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=newName; a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href),1000);
     showToast(updated+'개 시트 업데이트 완료 ✓','ok');
@@ -794,7 +798,7 @@ document.getElementById('xlsxUpload').addEventListener('change', async function(
     showToast('오류: '+err.message,'err');
     console.error(err);
   } finally{
-    label.innerHTML='⬆ 기존 엑셀 업데이트<input type="file" id="xlsxUpload" accept=".xlsx" style="display:none">';
+    label.innerHTML='⬆ 기존 엑셀 업데이트<input type="file" id="xlsxUpload" accept=".xlsx,.xlsm" style="display:none">';
     document.getElementById('xlsxUpload').addEventListener('change', arguments.callee.bind(this)? null : null);
     // re-bind
     document.getElementById('xlsxUpload').addEventListener('change', uploadHandler);
