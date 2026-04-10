@@ -165,8 +165,8 @@ select.meta-input option{background:var(--card)}
           <span class="meta-label">점검자</span>
           <input class="meta-input" id="inspector" type="text" placeholder="이름">
         </div>
-        <div class="meta-field" style="flex:0.7">
-          <span class="meta-label">점검시간</span>
+        <div class="meta-field" style="flex:0.6">
+          <span class="meta-label">시작</span>
           <select class="meta-input" id="shift">
             <option value="07">07시 (주간)</option>
             <option value="10">10시 (주간)</option>
@@ -174,6 +174,7 @@ select.meta-input option{background:var(--card)}
             <option value="22">22시 (야간)</option>
           </select>
         </div>
+
       </div>
       <div class="floor-tabs" id="floorTabs"></div>
     </div>
@@ -395,9 +396,10 @@ function openSaveModal(){
   const now=new Date();
   const tv=document.getElementById('shift').value;
   const sl=(tv==='22'?'야간':'주간');
+  const et='';
   document.getElementById('modalSub').textContent=
     (now.getMonth()+1)+'월 '+now.getDate()+'일 · '+
-    tv+'시 ('+sl+') · '+
+    tv+':00'+(et?' ~ '+et:'')+'('+sl+') · '+
     (document.getElementById('inspector').value||'(미입력)');
   document.getElementById('saveModal').classList.add('open');
 }
@@ -410,6 +412,7 @@ async function saveToBin(overwrite){
   const shift=document.getElementById('shift').value;
   const timeVal=document.getElementById('shift').value; // '07','10','15','22'
   const shiftLabel=(timeVal==='22'?'야간':'주간');
+  const endTimeVal='';
   const timeStr=timeVal+':00';
   const record={
     id: now.getTime(),
@@ -418,6 +421,7 @@ async function saveToBin(overwrite){
     time: timeStr,
     shift: shiftLabel,
     timeVal: timeVal,
+    endTime: endTimeVal,
     inspector,
     floors: JSON.parse(JSON.stringify(data))
   };
@@ -573,7 +577,9 @@ function printReport(){
   const inspector=latest.inspector;
   const shift=latest.shift;
   const timeStr=latest.time;
-  const dateStr=(now.getMonth()+1)+'/'+now.getDate()+' '+timeStr;
+  const timeRangeMap={'07':'06:30 ~ 07:00','10':'09:30 ~ 10:00','15':'14:30 ~ 15:00','22':'21:30 ~ 22:00'};
+  const timeRange=timeRangeMap[latest.timeVal]||latest.time;
+  const dateStr=(now.getMonth()+1)+'/'+now.getDate()+' '+timeRange;
 
   // 층별 통계 계산
   let tableRows='';
@@ -596,17 +602,17 @@ function printReport(){
 <meta charset="UTF-8">
 <title>환경점검결과</title>
 <style>
-@media print{.no-print{display:none}@page{size:A4;margin:20mm}}
-body{font-family:"Malgun Gothic","맑은 고딕",sans-serif;font-size:12px;padding:20px;max-width:600px;margin:0 auto;color:#111}
-.title{font-size:13px;font-weight:bold;margin-bottom:2px}
-.sub{font-size:12px;margin-bottom:2px}
-.section{font-size:12px;font-weight:bold;margin:10px 0 4px}
-table{border-collapse:collapse;width:100%;font-size:11px;margin-bottom:10px}
-th{background:#dce6f1;border:1px solid #999;padding:5px 8px;text-align:center;font-weight:600}
-td{border:1px solid #999;padding:5px 8px;text-align:center}
+@media print{.no-print{display:none}@page{size:A4;margin:15mm}}
+body{font-family:"Malgun Gothic","맑은 고딕",sans-serif;font-size:16px;padding:30px;max-width:700px;margin:0 auto;color:#111}
+.title{font-size:18px;font-weight:bold;margin-bottom:4px}
+.sub{font-size:15px;margin-bottom:4px}
+.section{font-size:16px;font-weight:bold;margin:14px 0 6px}
+table{border-collapse:collapse;width:100%;font-size:15px;margin-bottom:14px}
+th{background:#dce6f1;border:1px solid #999;padding:9px 12px;text-align:center;font-weight:600}
+td{border:1px solid #999;padding:9px 12px;text-align:center}
 td:first-child{font-weight:600;background:#f2f2f2}
-.footer{font-size:12px;margin-top:8px;line-height:2}
-.pbtn{display:block;margin:16px auto;padding:10px 32px;background:#1a56db;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer}
+.footer{font-size:15px;margin-top:12px;line-height:2.2}
+.pbtn{display:block;margin:20px auto;padding:12px 40px;background:#1a56db;color:#fff;border:none;border-radius:6px;font-size:15px;cursor:pointer}
 </style></head><body>
 <div class="title">&lt;성수SO팀&gt;</div>
 <div class="title">&lt;교환(장비)실 환경 점검 결과&gt;</div>
@@ -736,9 +742,10 @@ document.getElementById('xlsxUpload').addEventListener('change', async function(
     // 다운로드
     const outBuf=await wb.xlsx.writeBuffer();
     const blob=new Blob([outBuf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-    const now=new Date();
-    const fname='일일점검사항_'+now.getFullYear()+(now.getMonth()+1)+String(now.getDate()).padStart(2,'0')+'.xlsx';
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname; a.click();
+    // 원본 파일명에서 시간 부분만 선택한 시간대로 교체
+    const origName=file.name.replace(/\.xlsx$/i,'');
+    const newName=origName.replace(/_\d{1,2}시$/, '_'+latest.timeVal+'시')+'.xlsx';
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=newName; a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href),1000);
     showToast(updated+'개 시트 업데이트 완료 ✓','ok');
 
