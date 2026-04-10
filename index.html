@@ -248,6 +248,14 @@ const FLOORS = {
   '6층':{ units:[0,1,2,4,5,6,7] },
   '8층':{ units:[0,1,2,3] }
 };
+// 층별 호기 이동 순서 (실제 온도계 위치 기준)
+const FLOOR_ORDER = {
+  '8층': [0,1,2,3],
+  '6층': [5,4,6,7,0,1,2],
+  '5층': [1,0,2,3],
+  '3층': [2,3,1,0],
+  '2층': [1,3,2,4,5,6,7,0],
+};
 const LIM = { tMin:21, tMax:27, hMin:30, hMax:70 };
 const JSONBIN = 'https://api.jsonbin.io/v3/b';
 
@@ -375,11 +383,12 @@ function onInput(floor,unit,field,rawValue){
       const next=document.getElementById('hum-'+floor+'-'+unit);
       if(next){ next.focus(); next.select(); }
     } else if(field==='hum'){
-      // 습도 완료 → 다음 호기 온도로 이동
-      const units=FLOORS[floor].units;
-      const idx=units.indexOf(unit);
-      if(idx>=0&&idx<units.length-1){
-        const nextUnit=units[idx+1];
+      // 습도 완료 → 층별 순서에 따라 다음 호기로 이동
+      const order=FLOOR_ORDER[floor];
+      if(!order) return; // 순서 미정의 층은 이동 없음
+      const idx=order.indexOf(unit);
+      if(idx>=0&&idx<order.length-1){
+        const nextUnit=order[idx+1];
         const next=document.getElementById('temp-'+floor+'-'+nextUnit);
         if(next){ next.focus(); next.select(); }
       }
