@@ -667,7 +667,7 @@ table{border-collapse:collapse;width:100%;font-size:15px;margin-bottom:14px}
 th{background:#dce6f1;border:1px solid #999;padding:9px 12px;text-align:center;font-weight:600}
 td{border:1px solid #999;padding:9px 12px;text-align:center}
 td:first-child{font-weight:600;background:#f2f2f2}
-.footer{font-size:15px;margin-top:12px;line-height:2.8}
+.footer{font-size:15px;margin-top:12px;line-height:1.8}
 .footer-row{display:flex;align-items:baseline;gap:4px}
 .btn-wrap{display:flex;gap:10px;margin:20px auto;max-width:400px}
 .pbtn{flex:1;padding:12px;background:#1a56db;color:#fff;border:none;border-radius:6px;font-size:15px;cursor:pointer;font-family:inherit}
@@ -702,7 +702,7 @@ async function captureReport(){
   hint.style.display='none';
   try{
     const canvas=await html2canvas(document.getElementById('report'),{
-      scale:2, backgroundColor:'#ffffff', useCORS:true
+      scale:1, backgroundColor:'#ffffff', useCORS:true
     });
     canvas.toBlob(async(blob)=>{
       try{
