@@ -644,7 +644,7 @@ async function captureReport(){
         await navigator.clipboard.write([
           new ClipboardItem({'image/png':blob})
         ]);
-        alert('클립보드에 복사됐어요! 카톡/메일에 붙여넣기 하세요 (Ctrl+V)');
+        alert('클립보드에 복사했어요!!');
       } catch(e){
         // 클립보드 실패 시 다운로드로 폴백
         const a=document.createElement('a');
@@ -731,7 +731,7 @@ document.getElementById('xlsxUpload').addEventListener('change', async function(
       newRow.getCell(4).value=day;
       newRow.getCell(5).value=dow;
       newRow.getCell(6).value=shift;
-      newRow.getCell(7).value=new Date(0,0,0,hh,mm,0); // 시간
+      newRow.getCell(7).value=hh/24+mm/1440; // Excel time (시간/24)
       newRow.getCell(7).numFmt='h:mm';
       newRow.getCell(8).value=latest.inspector;
 
@@ -762,14 +762,17 @@ document.getElementById('xlsxUpload').addEventListener('change', async function(
       newRow.getCell(sc+4).value=temps.length?(tOk?'양호':'불량'):null;
       newRow.getCell(sc+5).value=hums.length?(hOk?'양호':'불량'):null;
 
-      // 스타일 복사 (바로 위 행에서)
+      // 스타일 복사 — 비고 포함 전체 컬럼
       const prevRow=ws.getRow(lastRow);
-      newRow.eachCell({includeEmpty:true},(cell,col)=>{
+      const totalCols=ws.columnCount||33;
+      const border={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}};
+      for(let col=1;col<=totalCols;col++){
+        const cell=newRow.getCell(col);
         const prevCell=prevRow.getCell(col);
-        if(prevCell.border) cell.border=prevCell.border;
-        if(prevCell.font) cell.font={...prevCell.font};
+        cell.border=border;
         cell.alignment={horizontal:'center',vertical:'middle'};
-      });
+        if(prevCell.font) cell.font={...prevCell.font,bold:false};
+      }
 
       newRow.commit();
       updated++;
