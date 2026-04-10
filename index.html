@@ -671,15 +671,11 @@ async function captureReport(){
 
 // ── 층별 컬럼 구조 ──
 const FLOOR_SCHEMA = {
-  '2층': {
-    units:    [0,1,2,3,4,5,6,7],
-    startCol: 9,   // I열
-    sumCol:   25,  // Y=avgT, Z=avgH, AA=maxT, AB=minH, AC=resultT, AD=resultH
-  },
-  '3층': { units:[0,1,2,3],       startCol:9, sumCol:17 },
-  '5층': { units:[0,1,2,3],       startCol:9, sumCol:17 },
-  '6층': { units:[0,1,2,4,5,6,7], startCol:9, sumCol:23 },
-  '8층': { units:[0,1,2,3],       startCol:9, sumCol:17 },
+  '2층': { units:[0,1,2,3,4,5,6,7], startCol:9, sumCol:25, lastCol:31 },
+  '3층': { units:[0,1,2,3],         startCol:9, sumCol:17, lastCol:23 },
+  '5층': { units:[0,1,2,3],         startCol:9, sumCol:17, lastCol:23 },
+  '6층': { units:[0,1,2,4,5,6,7],   startCol:9, sumCol:23, lastCol:29 },
+  '8층': { units:[0,1,2,3],         startCol:9, sumCol:17, lastCol:23 },
 };
 
 // ── 기존 xlsx 업데이트 ──
@@ -762,11 +758,10 @@ document.getElementById('xlsxUpload').addEventListener('change', async function(
       newRow.getCell(sc+4).value=temps.length?(tOk?'양호':'불량'):null;
       newRow.getCell(sc+5).value=hums.length?(hOk?'양호':'불량'):null;
 
-      // 스타일 복사 — 비고 포함 전체 컬럼
+      // 스타일 복사 — 층별 lastCol까지만 테두리
       const prevRow=ws.getRow(lastRow);
-      const totalCols=ws.columnCount||33;
       const border={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}};
-      for(let col=1;col<=totalCols;col++){
+      for(let col=1;col<=schema.lastCol;col++){
         const cell=newRow.getCell(col);
         const prevCell=prevRow.getCell(col);
         cell.border=border;
