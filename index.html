@@ -43,10 +43,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 /* HEADER */
 .header{background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 16px 0;position:sticky;top:0;z-index:100}
 .header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.app-title{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--cyan);letter-spacing:.06em}
+.app-title{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--cyan);letter-spacing:.06em}
 .app-title span{color:var(--text3);font-weight:400}
 .header-actions{display:flex;gap:6px;align-items:center}
-.hbtn{padding:4px 10px;border-radius:4px;font-family:var(--mono);font-size:10px;font-weight:600;cursor:pointer;border:1px solid var(--border2);background:var(--card2);color:var(--text2);transition:all .15s}
+.hbtn{padding:6px 12px;border-radius:4px;font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border2);background:var(--card2);color:var(--text2);transition:all .15s}
 .hbtn:hover{border-color:var(--cyan2);color:var(--cyan)}
 .hbtn.active{background:var(--cyan2);border-color:var(--cyan2);color:#fff}
 .meta-row{display:flex;gap:6px;margin-bottom:10px}
@@ -98,26 +98,26 @@ select.meta-input option{background:var(--card)}
 .save-btn:not(:disabled):hover{background:var(--cyan)}
 
 /* PC VIEW */
-.pc-view{padding:20px;max-width:900px;margin:0 auto;padding-bottom:90px}
+.pc-view{padding:24px;max-width:1100px;margin:0 auto;padding-bottom:90px}
 .pc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
-.pc-title{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--text)}
-.pc-sub{font-family:var(--mono);font-size:11px;color:var(--text3);margin-top:3px}
-.dl-btn{padding:10px 20px;background:var(--green);border:none;border-radius:var(--rs);color:#111;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap}
+.pc-title{font-family:var(--mono);font-size:18px;font-weight:600;color:var(--text)}
+.pc-sub{font-family:var(--mono);font-size:13px;color:var(--text3);margin-top:3px}
+.dl-btn{padding:12px 22px;background:var(--green);border:none;border-radius:var(--rs);color:#111;font-family:var(--mono);font-size:14px;font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap}
 .dl-btn:hover{background:#22c55e;transform:translateY(-1px)}
 .dl-btn:disabled{background:var(--border2);color:var(--text3);cursor:not-allowed;transform:none}
 .pc-floor{margin-bottom:24px}
-.pc-floor-title{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--cyan);background:var(--card);border:1px solid var(--border);border-radius:var(--rs);padding:8px 12px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.pc-floor-title{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--cyan);background:var(--card);border:1px solid var(--border);border-radius:var(--rs);padding:8px 12px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
 .pc-table{width:100%;border-collapse:collapse;font-size:12px}
-.pc-table th{background:var(--card2);color:var(--text2);padding:7px 10px;text-align:center;border:1px solid var(--border);font-family:var(--mono);font-size:10px;font-weight:600}
-.pc-table td{padding:7px 10px;border:1px solid var(--border);text-align:center;font-family:var(--mono)}
+.pc-table th{background:var(--card2);color:var(--text2);padding:9px 12px;text-align:center;border:1px solid var(--border);font-family:var(--mono);font-size:13px;font-weight:600}
+.pc-table td{padding:9px 12px;border:1px solid var(--border);text-align:center;font-family:var(--mono);font-size:13px}
 .pc-table td.unit{text-align:left;color:var(--text2);font-weight:600}
 .pc-table td.val{color:var(--cyan)}
 .pc-table td.ok{color:var(--green);font-weight:600}
 .pc-table td.bad{color:var(--red);font-weight:600;background:var(--red-dim)}
 .pc-table td.empty{color:var(--text3)}
 .pc-table tr:hover td{background:var(--bg3)}
-.no-data{text-align:center;padding:40px;color:var(--text3);font-family:var(--mono);font-size:12px}
-.sync-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--rs);padding:8px 14px;margin-bottom:16px;display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--text3)}
+.no-data{text-align:center;padding:40px;color:var(--text3);font-family:var(--mono);font-size:14px}
+.sync-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--rs);padding:10px 16px;margin-bottom:16px;display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:13px;color:var(--text3)}
 .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--text3);flex-shrink:0}
 .sync-dot.ok{background:var(--green)}
 .sync-dot.err{background:var(--red)}
@@ -165,11 +165,13 @@ select.meta-input option{background:var(--card)}
           <span class="meta-label">점검자</span>
           <input class="meta-input" id="inspector" type="text" placeholder="이름">
         </div>
-        <div class="meta-field" style="flex:0.55">
-          <span class="meta-label">구분</span>
+        <div class="meta-field" style="flex:0.7">
+          <span class="meta-label">점검시간</span>
           <select class="meta-input" id="shift">
-            <option value="주간">주간</option>
-            <option value="야간">야간</option>
+            <option value="07">07시 (주간)</option>
+            <option value="10">10시 (주간)</option>
+            <option value="15">15시 (주간)</option>
+            <option value="22">22시 (야간)</option>
           </select>
         </div>
       </div>
@@ -380,7 +382,7 @@ function updateProgress(){
   Object.keys(FLOORS).forEach(f=>FLOORS[f].units.forEach(u=>{ total++; if(data[f][u].temp!==''&&data[f][u].hum!=='') filled++; }));
   document.getElementById('progressText').textContent=filled+' / '+total;
   document.getElementById('progressFill').style.width=(total>0?(filled/total)*100:0)+'%';
-  document.getElementById('saveBtn').disabled=filled===0;
+  const sb=document.getElementById('saveBtn'); if(sb) sb.disabled=filled===0;
 }
 
 // ── JSONBIN SAVE ──
@@ -391,9 +393,11 @@ document.getElementById('btnSaveCancel').addEventListener('click', ()=>closeModa
 
 function openSaveModal(){
   const now=new Date();
+  const tv=document.getElementById('shift').value;
+  const sl=(tv==='22'?'야간':'주간');
   document.getElementById('modalSub').textContent=
     (now.getMonth()+1)+'월 '+now.getDate()+'일 · '+
-    document.getElementById('shift').value+' · '+
+    tv+'시 ('+sl+') · '+
     (document.getElementById('inspector').value||'(미입력)');
   document.getElementById('saveModal').classList.add('open');
 }
@@ -404,12 +408,17 @@ async function saveToBin(overwrite){
   const now=new Date(), days=['일','월','화','수','목','금','토'];
   const inspector=document.getElementById('inspector').value||'(미입력)';
   const shift=document.getElementById('shift').value;
+  const timeVal=document.getElementById('shift').value; // '07','10','15','22'
+  const shiftLabel=(timeVal==='22'?'야간':'주간');
+  const timeStr=timeVal+':00';
   const record={
     id: now.getTime(),
     date: now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0'),
     day: days[now.getDay()],
-    time: String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'),
-    inspector, shift,
+    time: timeStr,
+    shift: shiftLabel,
+    timeVal: timeVal,
+    inspector,
     floors: JSON.parse(JSON.stringify(data))
   };
 
@@ -422,13 +431,13 @@ async function saveToBin(overwrite){
     let records=[];
     if(res.ok){
       const j=await res.json();
-      records=Array.isArray(j)?j:(j.records||[]);
+      records=Array.isArray(j)?j:Array.isArray(j.record)?j.record:[];
     }
 
     if(overwrite){
       // 오늘 같은 shift 덮어쓰기
       const todayStr=record.date;
-      const idx=records.findIndex(r=>r.date===todayStr&&r.shift===shift);
+      const idx=records.findIndex(r=>r.date===todayStr&&r.timeVal===timeVal);
       if(idx>=0) records[idx]=record;
       else records.push(record);
     } else {
@@ -461,7 +470,7 @@ async function loadFromBin(){
     });
     if(!res.ok) throw new Error(res.status);
     const j=await res.json();
-    binData=Array.isArray(j)?j:(j.records||[]);
+    binData=Array.isArray(j)?j:Array.isArray(j.record)?j.record:[];
     setSyncState('ok','동기화 완료 · '+binData.length+'개 기록');
     renderPC();
   } catch(e){
@@ -478,7 +487,7 @@ function setSyncState(state,msg){
 function renderPC(){
   if(!binData.length){
     document.getElementById('pcContent').innerHTML='<div class="no-data">저장된 점검 데이터가 없어요</div>';
-    document.getElementById('dlBtn').disabled=true;
+    // dlBtn removed
     return;
   }
   // 최신 기록 표시
@@ -487,8 +496,8 @@ function renderPC(){
   document.getElementById('pcSub').textContent=
     latest.date+' ('+latest.day+') '+latest.shift+' · 점검자: '+latest.inspector+
     ' | 총 '+binData.length+'개 기록';
-  document.getElementById('dlBtn').disabled=false;
-  document.getElementById('btnReport').disabled=false;
+  // dlBtn removed
+  const rpt=document.getElementById('btnReport'); if(rpt) rpt.disabled=false;
   enableUpdateBtn();
 
   let html='';
@@ -500,7 +509,7 @@ function renderPC(){
     const isLatest=i===0;
     html+='<tr style="'+(isLatest?'background:rgba(56,189,248,.05)':'')+'">';
     html+='<td class="unit">'+r.date.slice(5)+' ('+r.day+')</td>';
-    html+='<td>'+r.shift+'</td><td>'+r.inspector+'</td>';
+    html+='<td>'+(r.timeVal?r.timeVal+'시':r.shift)+'</td><td>'+r.shift+'</td><td>'+r.inspector+'</td>';
     Object.keys(FLOORS).forEach(f=>{
       const units=FLOORS[f].units;
       const filled=units.filter(u=>r.floors[f]&&r.floors[f][u]&&r.floors[f][u].temp!=='').length;
@@ -652,7 +661,7 @@ document.getElementById('xlsxUpload').addEventListener('change', async function(
     const dow=days[dateObj.getDay()];
     const shift=latest.shift;
     const key=mon+day+dow+(shift==='주간'?'주간':'야간');
-    const timeStr=latest.time; // '10:00'
+    const timeStr=latest.time||'00:00';
     const [hh,mm]=timeStr.split(':').map(Number);
 
     let updated=0;
@@ -748,13 +757,13 @@ document.getElementById('xlsxUpload').addEventListener('change', async function(
 function uploadHandler(e){ document.getElementById('xlsxUpload').dispatchEvent(new Event('change')); }
 
 // btnUpdate 활성화는 데이터 로드 후
-function enableUpdateBtn(){ document.getElementById('btnUpdate').style.opacity='1'; }
+function enableUpdateBtn(){ const el=document.getElementById('btnUpdate'); if(el) el.style.opacity='1'; }
 
 // ── EXCEL DOWNLOAD ──
 async function downloadExcel(){
   if(!binData.length){ showToast('다운로드할 데이터 없음','err'); return; }
-  document.getElementById('dlBtn').textContent='⏳ 생성 중...';
-  document.getElementById('dlBtn').disabled=true;
+  // dlBtn removed
+  // dlBtn removed
 
   try{
     const wb=new ExcelJS.Workbook();
@@ -867,8 +876,8 @@ async function downloadExcel(){
     showToast('엑셀 생성 실패: '+e.message,'err');
     console.error(e);
   } finally{
-    document.getElementById('dlBtn').textContent='⬇ 엑셀 다운로드';
-    document.getElementById('dlBtn').disabled=false;
+    // dlBtn removed
+    // dlBtn removed
   }
 }
 
