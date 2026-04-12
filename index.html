@@ -757,46 +757,48 @@ td:first-child{font-weight:600;background:#f2f2f2}
 </div>
 </div>
 <div class="btn-wrap">
-  <button class="cbtn" onclick="captureReport()">📋 클립보드에 복사</button>
+  <button class="cbtn" id="captureBtn">📋 클립보드에 복사</button>
 </div>
-<scr'+'ipt>
-async function captureReport(){
-  const btn=document.querySelector('.btn-wrap');
-  const hint=document.querySelector('.hint');
-  document.querySelectorAll('.editable').forEach(el=>{ el.style.borderBottom='none'; });
-  btn.style.display='none';
-  hint.style.display='none';
-  try{
-    const canvas=await html2canvas(document.getElementById('report'),{
-      scale:1, backgroundColor:'#ffffff', useCORS:true
-    });
-    canvas.toBlob(async(blob)=>{
-      try{
-        await navigator.clipboard.write([
-          new ClipboardItem({'image/png':blob})
-        ]);
-        alert('클립보드에 복사했어요!!');
-      } catch(e){
-        // 클립보드 실패 시 다운로드로 폴백
-        const a=document.createElement('a');
-        a.href=canvas.toDataURL('image/png');
-        a.download='온습도점검.png';
-        a.click();
-        alert('클립보드 복사 실패 — 파일로 저장했어요');
-      }
-    },'image/png');
-  } finally {
-    document.querySelectorAll('.editable').forEach(el=>{ el.style.borderBottom=''; });
-    btn.style.display='';
-    hint.style.display='';
-  }
-}
-<\/script>
 </body></html>`;
 
   const w=window.open('','_blank');
   w.document.write(reportHTML);
   w.document.close();
+
+  // captureReport를 팝업 윈도우에 직접 주입 (script 태그 충돌 방지)
+  setTimeout(()=>{
+    if(!w||w.closed) return;
+    const h2cScript=w.document.createElement('script');
+    h2cScript.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    h2cScript.onload=()=>{
+      w.document.getElementById('captureBtn').addEventListener('click', async function(){
+        const btn=w.document.querySelector('.btn-wrap');
+        const hint=w.document.querySelector('.hint');
+        w.document.querySelectorAll('.editable').forEach(el=>{ el.style.borderBottom='none'; });
+        btn.style.display='none'; hint.style.display='none';
+        try{
+          const canvas=await w.html2canvas(w.document.getElementById('report'),{
+            scale:1, backgroundColor:'#ffffff', useCORS:true
+          });
+          canvas.toBlob(async(blob)=>{
+            try{
+              await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+              w.alert('클립보드에 복사했어요!!');
+            } catch(e){
+              const a=w.document.createElement('a');
+              a.href=canvas.toDataURL('image/png');
+              a.download='온습도점검.png'; a.click();
+              w.alert('클립보드 복사 실패 — 파일로 저장했어요');
+            }
+          },'image/png');
+        } finally{
+          w.document.querySelectorAll('.editable').forEach(el=>{ el.style.borderBottom=''; });
+          btn.style.display=''; hint.style.display='';
+        }
+      });
+    };
+    w.document.head.appendChild(h2cScript);
+  }, 300);
 }
 
 
