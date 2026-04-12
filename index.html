@@ -874,19 +874,13 @@ function uploadHandler(e){ document.getElementById('xlsxUpload').dispatchEvent(n
 
 
 // ── 엑셀 행 복사 (TSV) ──
-const FLOOR_UNITS_MAP = {
-  '2층': [0,1,2,3,4,5,6,7],
-  '3층': [0,1,2,3],
-  '5층': [0,1,2,3],
-  '6층': [0,1,2,4,5,6,7],
-  '8층': [0,1,2,3],
-};
+// FLOOR_UNITS_MAP → FLOORS.units 로 통일
 
 function generateTSV(floor, record){
   // xlsm 셀추가 매크로가 키/NO/날짜/수식 자동처리
   // G열(시간)부터 붙여넣기용: 시간, 점검자, 각 호기 온도/습도만
   const fd = record.floors[floor]||{};
-  const units = FLOOR_UNITS_MAP[floor];
+  const units = FLOORS[floor].units;
   const timeVal = record.timeVal||'00';
   const timeStr = timeVal+':00';
 
@@ -906,7 +900,7 @@ function buildFloorCopyBtns(){
   if(!row||!wrap) return;
   if(!binData.length){ row.style.display='none'; return; }
   wrap.innerHTML='';
-  Object.keys(FLOOR_UNITS_MAP).forEach(f=>{
+  Object.keys(FLOORS).forEach(f=>{
     const btn=document.createElement('button');
     btn.id='copybtn-'+f;
     btn.style.cssText='padding:9px 16px;border-radius:var(--rs);font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border2);background:var(--card2);color:var(--text2);transition:all .15s;white-space:nowrap';
