@@ -215,10 +215,8 @@ select.meta-input option{background:var(--card)}
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
         <button class="dl-btn" id="btnReport" onclick="printReport()" disabled style="background:var(--cyan2);color:#fff">🖨 보고서 출력</button>
-        <label class="dl-btn" id="btnUpdate" style="background:var(--green);cursor:pointer;opacity:0.4" title="기존 xlsx 업로드 후 새 행 추가">
-          ⬆ 기존 엑셀 업데이트
-          <input type="file" id="xlsxUpload" accept=".xlsx,.xlsm" style="display:none">
-        </label>
+        <button class="dl-btn" id="btnRowCopy" onclick="showCopyModal()" disabled style="background:var(--green);color:#111">📋 엑셀 행 복사</button>
+
       </div>
     </div>
     <div id="pcContent"></div>
@@ -234,6 +232,28 @@ select.meta-input option{background:var(--card)}
       <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
     </div>
     <button class="save-btn" id="saveBtn" disabled>☁ 저장</button>
+  </div>
+</div>
+
+
+<!-- COPY MODAL -->
+<div class="modal-overlay" id="copyModal">
+  <div class="modal" style="max-height:85vh;overflow-y:auto;border-radius:16px 16px 0 0">
+    <div class="modal-title">📋 엑셀 행 복사</div>
+    <div class="modal-sub">① xlsm 종합그래프에서 셀추가 ② 층 탭 선택 → 복사 ③ 해당 시트 G열(시간) 클릭 → Ctrl+V</div>
+    <div style="display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap" id="copyFloorTabs"></div>
+    <textarea id="copyTextarea" readonly style="
+      width:100%;height:80px;background:var(--bg3);border:1px solid var(--border2);
+      border-radius:var(--rs);color:var(--cyan);font-family:var(--mono);font-size:10px;
+      padding:8px;resize:none;outline:none;line-height:1.6
+    "></textarea>
+    <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin:8px 0">
+      ※ 시간+점검자+호기 온습도만 포함 (평균/최고/판정은 xlsm 자동계산)
+    </div>
+    <div class="modal-btns">
+      <button class="mbt primary" id="btnCopyText">복사</button>
+      <button class="mbt secondary" onclick="closeModal('copyModal')">닫기</button>
+    </div>
   </div>
 </div>
 
@@ -555,7 +575,7 @@ function renderPC(){
     ' | 총 '+binData.length+'개 기록';
   // dlBtn removed
   const rpt=document.getElementById('btnReport'); if(rpt) rpt.disabled=false;
-  enableUpdateBtn();
+  const rwe=document.getElementById('btnRowCopy'); if(rwe) rwe.disabled=false;
 
   let html='';
   // 기록 목록 (최근 5개)
@@ -867,7 +887,82 @@ document.getElementById('xlsxUpload').addEventListener('change', async function(
 function uploadHandler(e){ document.getElementById('xlsxUpload').dispatchEvent(new Event('change')); }
 
 // btnUpdate 활성화는 데이터 로드 후
-function enableUpdateBtn(){ const el=document.getElementById('btnUpdate'); if(el) el.style.opacity='1'; }
+
+
+// ── 엑셀 행 복사 (TSV) ──
+const FLOOR_UNITS_MAP = {
+  '2층': [0,1,2,3,4,5,6,7],
+  '3층': [0,1,2,3],
+  '5층': [0,1,2,3],
+  '6층': [0,1,2,4,5,6,7],
+  '8층': [0,1,2,3],
+};
+
+function generateTSV(floor, record){
+  // xlsm 셀추가 매크로가 키/NO/날짜/수식 자동처리
+  // G열(시간)부터 붙여넣기용: 시간, 점검자, 각 호기 온도/습도만
+  const fd = record.floors[floor]||{};
+  const units = FLOOR_UNITS_MAP[floor];
+  const timeVal = record.timeVal||'00';
+  const timeStr = timeVal+':00';
+
+  const row=[timeStr, record.inspector];
+  units.forEach(u=>{
+    const d=fd[u]||{temp:'',hum:''};
+    row.push(d.temp!==''?parseFloat(d.temp):'');
+    row.push(d.hum!==''?parseFloat(d.hum):'');
+  });
+
+  return row.map(v=>v===null||v===undefined?'':v).join('	');
+}
+
+let currentCopyFloor='2층';
+
+function showCopyModal(){
+  if(!binData.length){ showToast('데이터 없음','err'); return; }
+  const latest=binData[binData.length-1];
+
+  // 층 탭 생성
+  const tabWrap=document.getElementById('copyFloorTabs');
+  tabWrap.innerHTML='';
+  Object.keys(FLOOR_UNITS_MAP).forEach(f=>{
+    const btn=document.createElement('button');
+    btn.textContent=f;
+    btn.style.cssText='padding:6px 12px;border-radius:4px;font-family:var(--mono);font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border2);background:var(--card2);color:var(--text2);transition:all .15s';
+    btn.onclick=()=>{
+      currentCopyFloor=f;
+      document.querySelectorAll('#copyFloorTabs button').forEach(b=>{ b.style.background='var(--card2)'; b.style.color='var(--text2)'; b.style.borderColor='var(--border2)'; });
+      btn.style.background='var(--cyan2)'; btn.style.color='#fff'; btn.style.borderColor='var(--cyan2)';
+      document.getElementById('copyTextarea').value=generateTSV(f, latest);
+    };
+    tabWrap.appendChild(btn);
+  });
+
+  // 첫 번째 탭 선택
+  currentCopyFloor='2층';
+  tabWrap.firstChild.style.background='var(--cyan2)';
+  tabWrap.firstChild.style.color='#fff';
+  tabWrap.firstChild.style.borderColor='var(--cyan2)';
+  document.getElementById('copyTextarea').value=generateTSV('2층', latest);
+
+  document.getElementById('copyModal').classList.add('open');
+}
+
+document.getElementById('btnCopyText').addEventListener('click', async function(){
+  const text=document.getElementById('copyTextarea').value;
+  try{
+    await navigator.clipboard.writeText(text);
+    showToast('복사 완료 ✓ — xlsm 빈 A열 클릭 후 Ctrl+V','ok');
+  } catch(e){
+    document.getElementById('copyTextarea').select();
+    document.execCommand('copy');
+    showToast('복사 완료 ✓','ok');
+  }
+});
+
+document.getElementById('copyModal').addEventListener('click',function(e){ if(e.target===this) closeModal('copyModal'); });
+
+
 
 // ── EXCEL DOWNLOAD ──
 async function downloadExcel(){
