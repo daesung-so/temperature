@@ -167,7 +167,7 @@ select.meta-input option{background:var(--card)}
 <div id="appMain" style="display:none">
   <div class="header">
     <div class="header-top">
-      <div class="app-title" id="appTitle" style="cursor:pointer;user-select:none">🌡 온습도 점검 <span style="pointer-events:none">/ 성수SO팀</span></div>
+      <div class="app-title" id="appTitle" style="cursor:pointer;user-select:none;-webkit-touch-callout:none;-webkit-user-select:none">🌡 온습도 점검 <span style="pointer-events:none">/ 성수SO팀</span></div>
       <div class="header-actions">
         <div id="dateLabel" style="font-family:var(--mono);font-size:10px;color:var(--text3)"></div>
         <button class="hbtn" id="btnOrder" onclick="toggleOrder()" title="입력 순서 전환">장비실순</button>
@@ -1142,6 +1142,7 @@ function initLongPress(){
   el.addEventListener('touchstart', startLongPress, {passive:true});
   el.addEventListener('touchend', cancelLongPress);
   el.addEventListener('touchcancel', cancelLongPress);
+  el.addEventListener('contextmenu', function(e){ e.preventDefault(); });
   // PC + 모바일 공통: 5번 연속 클릭
   el.addEventListener('click', function(){
     clickCount++;
@@ -1160,7 +1161,8 @@ function cancelLongPress(){
 
 // ── 최근 10개 평균으로 자동채우기 ──
 function fillAverage(){
-  if(binData.length<1){ showToast('저장된 데이터가 없어요','err'); return; }
+  console.log('fillAverage 호출됨, binData:', binData.length);
+  if(binData.length<1){ showToast('저장된 데이터가 없어요 (PC탭 먼저 접속 필요)','err'); return; }
 
   // 최근 10개 (현재 제외)
   const recent=binData.slice(-10);
