@@ -627,7 +627,7 @@ function renderPC(){
   // 기록 목록 (최근 5개)
   const recent=binData.slice(-5).reverse();
   html+='<div style="margin-bottom:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">';
-  html+='<table class="pc-table"><thead><tr><th>날짜</th><th>시간</th><th>주야간</th><th>점검자</th><th>2층</th><th>3층</th><th>5층</th><th>6층</th><th>8층</th></tr></thead><tbody>';
+  html+='<table class="pc-table"><thead><tr><th>날짜</th><th>시간</th><th>주야간</th><th>점검자</th><th>2층</th><th>3층</th><th>5층</th><th>6층</th><th>8층</th><th></th></tr></thead><tbody>';
   recent.forEach((r,i)=>{
     const isLatest=i===0;
     html+='<tr style="'+(isLatest?'background:rgba(56,189,248,.05)':'')+'">';
@@ -639,6 +639,7 @@ function renderPC(){
       html+='<td class="'+(filled===units.length?'ok':filled>0?'val':'empty')+'">'+filled+'/'+units.length+'</td>';
     });
 
+    html+='<td><button onclick="deleteRecord('+r.id+')" style="background:none;border:1px solid rgba(248,113,113,.4);border-radius:4px;color:var(--red);font-size:10px;padding:3px 8px;cursor:pointer;font-family:var(--mono)">삭제</button></td>';
     html+='</tr>';
   });
   html+='</tbody></table></div>';
@@ -792,6 +793,33 @@ ${'<'+'/scri'+'pt>'}
   w.document.close();
 }
 
+
+
+// ── 기록 삭제 ──
+async function deleteRecord(id){
+  if(!confirm('이 기록을 삭제할까요?')) return;
+  try{
+    const res=await fetch(JSONBIN+'/'+jbBin+'/latest',{
+      headers:{'X-Master-Key':jbKey,'X-Bin-Meta':false}
+    });
+    if(!res.ok) throw new Error(res.status);
+    const j=await res.json();
+    let records=Array.isArray(j)?j:Array.isArray(j.record)?j.record:[];
+    records=records.filter(r=>r.id!==id);
+    const saveRes=await fetch(JSONBIN+'/'+jbBin,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json','X-Master-Key':jbKey},
+      body:JSON.stringify(records)
+    });
+    if(!saveRes.ok) throw new Error(saveRes.status);
+    binData=records;
+    try{ localStorage.setItem('binData_cache',JSON.stringify(binData)); } catch(e){}
+    showToast('삭제 완료 ✓','ok');
+    renderPC();
+  } catch(e){
+    showToast('삭제 실패: '+e.message,'err');
+  }
+}
 
 // ── 층별 컬럼 구조 ──
 const FLOOR_SCHEMA = {
