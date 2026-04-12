@@ -1137,18 +1137,27 @@ let longPressTimer=null;
 let clickCount=0, clickTimer=null;
 function initLongPress(){
   const el=document.getElementById('appTitle');
-  if(!el) return;
-  // 모바일: 5초 롱프레스
-  el.addEventListener('touchstart', startLongPress, {passive:true});
+  if(!el){ console.log('appTitle 없음'); return; }
+  console.log('initLongPress 완료', el);
+
+  // 모바일 롱프레스
+  el.addEventListener('touchstart', function(e){
+    console.log('touchstart');
+    cancelLongPress();
+    longPressTimer=setTimeout(()=>{ fillAverage(); }, 5000);
+  }, {passive:true});
   el.addEventListener('touchend', cancelLongPress);
   el.addEventListener('touchcancel', cancelLongPress);
   el.addEventListener('contextmenu', function(e){ e.preventDefault(); });
-  // PC + 모바일 공통: 5번 연속 클릭
-  el.addEventListener('click', function(){
+
+  // 클릭 — 제목 글자 위에 카운터 표시
+  el.addEventListener('click', function(e){
     clickCount++;
+    el.title = '클릭: '+clickCount+'/5';
     clearTimeout(clickTimer);
-    clickTimer=setTimeout(()=>{ clickCount=0; }, 2000);
-    if(clickCount>=5){ clickCount=0; fillAverage(); }
+    clickTimer=setTimeout(()=>{ clickCount=0; el.title=''; }, 2000);
+    if(clickCount>=5){ clickCount=0; el.title=''; fillAverage(); }
+    console.log('click', clickCount);
   });
 }
 function startLongPress(){
