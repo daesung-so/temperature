@@ -304,6 +304,8 @@ function startApp(){
   updateProgress();
   setMode('mobile');
   setTimeout(initLongPress, 100); // DOM 완전 로드 후 바인딩
+  // 가라 기능용 binData 백그라운드 로드
+  loadBinSilent();
 }
 
 function setMode(mode){
@@ -470,11 +472,20 @@ async function saveToBin(overwrite){
     floors: JSON.parse(JSON.stringify(data))
   };
 
+  // 저장 중 버튼 비활성화
+  const sb=document.getElementById('saveBtn');
+  if(sb){ sb.disabled=true; sb.textContent='저장 중...'; }
   showToast('클라우드 저장 중...','warn');
+
+  // 10초 타임아웃
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),10000);
+
   try{
     // 현재 bin 데이터 읽기
     const res=await fetch(JSONBIN+'/'+jbBin+'/latest',{
-      headers:{'X-Master-Key':jbKey,'X-Bin-Meta':false}
+      headers:{'X-Master-Key':jbKey,'X-Bin-Meta':false},
+      signal:controller.signal
     });
     let records=[];
     if(res.ok){
@@ -512,18 +523,38 @@ async function saveToBin(overwrite){
     const saveRes=await fetch(JSONBIN+'/'+jbBin,{
       method:'PUT',
       headers:{'Content-Type':'application/json','X-Master-Key':jbKey},
-      body:JSON.stringify(records)
+      body:JSON.stringify(records),
+      signal:controller.signal
     });
     if(!saveRes.ok) throw new Error(saveRes.status);
     showToast('클라우드 저장 완료 ✓','ok');
     binData=records;
   } catch(e){
-    showToast('클라우드 저장 실패: '+e.message,'err');
+    if(e.name==='AbortError'){
+      showToast('저장 시간 초과 — 네트워크 확인 후 재시도','err');
+    } else {
+      showToast('클라우드 저장 실패: '+e.message,'err');
+    }
     console.error(e);
+  } finally{
+    clearTimeout(timeout);
+    const sb2=document.getElementById('saveBtn');
+    if(sb2){ sb2.textContent='☁ 저장'; sb2.disabled=false; updateProgress(); }
   }
 }
 
 // ── JSONBIN LOAD (PC) ──
+async function loadBinSilent(){
+  try{
+    const res=await fetch(JSONBIN+'/'+jbBin+'/latest',{
+      headers:{'X-Master-Key':jbKey,'X-Bin-Meta':false}
+    });
+    if(!res.ok) return;
+    const j=await res.json();
+    binData=Array.isArray(j)?j:Array.isArray(j.record)?j.record:[];
+  } catch(e){ /* 조용히 실패 */ }
+}
+
 async function loadFromBin(){
   setSyncState('loading','불러오는 중...');
   try{
