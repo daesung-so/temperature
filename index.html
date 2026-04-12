@@ -170,6 +170,7 @@ select.meta-input option{background:var(--card)}
       <div class="app-title" id="appTitle" style="cursor:pointer;user-select:none">🌡 온습도 점검 <span style="pointer-events:none">/ 성수SO팀</span></div>
       <div class="header-actions">
         <div id="dateLabel" style="font-family:var(--mono);font-size:10px;color:var(--text3)"></div>
+        <button class="hbtn" id="btnOrder" onclick="toggleOrder()" title="입력 순서 전환">장비실순</button>
         <button class="hbtn" id="btnMobile" onclick="setMode('mobile')">📱 입력</button>
         <button class="hbtn" id="btnPC" onclick="setMode('pc')">💻 PC</button>
         
@@ -254,13 +255,34 @@ const FLOORS = {
   '8층':{ units:[0,1,2,3] }
 };
 // 층별 호기 이동 순서 (실제 온도계 위치 기준)
-const FLOOR_ORDER = {
+const FLOOR_ORDER_FIELD = {
   '8층': [0,1,2,3],
   '6층': [5,4,6,7,0,1,2],
   '5층': [1,0,2,3],
   '3층': [2,3,1,0],
   '2층': [1,3,2,4,5,6,7,0],
 };
+// 정방향 순서
+const FLOOR_ORDER_NORMAL = {
+  '2층': [0,1,2,3,4,5,6,7],
+  '3층': [0,1,2,3],
+  '5층': [0,1,2,3],
+  '6층': [0,1,2,4,5,6,7],
+  '8층': [0,1,2,3],
+};
+let orderMode = 'field'; // 'field'=장비실순, 'normal'=정방향
+let FLOOR_ORDER = FLOOR_ORDER_FIELD;
+
+function toggleOrder(){
+  orderMode = orderMode==='field' ? 'normal' : 'field';
+  FLOOR_ORDER = orderMode==='field' ? FLOOR_ORDER_FIELD : FLOOR_ORDER_NORMAL;
+  const btn=document.getElementById('btnOrder');
+  if(btn){
+    btn.textContent = orderMode==='field' ? '장비실순' : '정방향';
+    btn.className = orderMode==='field' ? 'hbtn' : 'hbtn active';
+  }
+  showToast(orderMode==='field' ? '장비실 순서로 전환' : '정방향 순서로 전환', '');
+}
 const LIM = { tMin:21, tMax:27, hMin:30, hMax:70 };
 const JSONBIN = 'https://api.jsonbin.io/v3/b';
 
@@ -528,6 +550,7 @@ async function saveToBin(overwrite){
     if(!saveRes.ok) throw new Error(saveRes.status);
     showToast('클라우드 저장 완료 ✓','ok');
     binData=records;
+    try{ localStorage.setItem('binData_cache', JSON.stringify(binData)); } catch(e){}
   } catch(e){
     if(e.name==='AbortError'){
       showToast('저장 시간 초과 — 네트워크 확인 후 재시도','err');
@@ -544,14 +567,21 @@ async function saveToBin(overwrite){
 
 // ── JSONBIN LOAD (PC) ──
 async function loadBinSilent(){
+  // localStorage 캐시 먼저 로드 (네트워크 차단 환경 대비)
+  try{
+    const cached=localStorage.getItem('binData_cache');
+    if(cached){ binData=JSON.parse(cached); }
+  } catch(e){}
+  // 네트워크 로드 시도
   try{
     const res=await fetch(JSONBIN+'/'+jbBin+'/latest',{
       headers:{'X-Master-Key':jbKey,'X-Bin-Meta':false}
     });
     if(!res.ok) return;
     const j=await res.json();
-    binData=Array.isArray(j)?j:Array.isArray(j.record)?j.record:[];
-  } catch(e){ /* 조용히 실패 */ }
+    const fresh=Array.isArray(j)?j:Array.isArray(j.record)?j.record:[];
+    if(fresh.length){ binData=fresh; localStorage.setItem('binData_cache',JSON.stringify(binData)); }
+  } catch(e){ /* 캐시 데이터 사용 */ }
 }
 
 async function loadFromBin(){
@@ -564,6 +594,8 @@ async function loadFromBin(){
     const j=await res.json();
     binData=Array.isArray(j)?j:Array.isArray(j.record)?j.record:[];
     setSyncState('ok','동기화 완료 · '+binData.length+'개 기록');
+    // localStorage에 캐시 저장 (오프라인/차단 환경용)
+    try{ localStorage.setItem('binData_cache', JSON.stringify(binData)); } catch(e){}
     renderPC();
   } catch(e){
     setSyncState('err','불러오기 실패: '+e.message);
