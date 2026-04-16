@@ -284,14 +284,12 @@ function toggleOrder(){
   showToast(orderMode==='field' ? '장비실 순서로 전환' : '정방향 순서로 전환', '');
 }
 const LIM = { tMin:21, tMax:27, hMin:30, hMax:70 };
-const JSONBIN = 'https://api.jsonbin.io/v3/b';
+
 
 // ── 상태 ──
-// ▼▼ 여기에 JSONBin 정보 입력 (GitHub에 올리기 전에 채워주세요) ▼▼
-const JB_KEY = '$2a$10$tMh0JYAlhrIJGLZgz8fc/.9zbm2F.29jUHh6RK0dioxpRLlsYDMVq';  // jsonbin.io API Key
-const JB_BIN = '69c33eb4aa77b81da917cab7';           // Bin ID
-// ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
-let jbKey=JB_KEY, jbBin=JB_BIN;
+// ▼▼ Cloudflare Workers API URL ▼▼
+const API_URL = 'https://so-schedule.sungsu.workers.dev/api/temperature';
+// ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 let curFloor='2층', curMode='mobile';
 let data={};
 let binData=[]; // 저장된 점검 목록
@@ -453,7 +451,7 @@ function updateProgress(){
   const sb=document.getElementById('saveBtn'); if(sb) sb.disabled=filled===0;
 }
 
-// ── JSONBIN SAVE ──
+// ── 클라우드 저장 ──
 document.getElementById('saveBtn').addEventListener('click', ()=>saveToBin(true));
 
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
@@ -504,10 +502,7 @@ async function saveToBin(overwrite){
 
   try{
     // 현재 bin 데이터 읽기
-    const res=await fetch(JSONBIN+'/'+jbBin+'/latest',{
-      headers:{'X-Master-Key':jbKey,'X-Bin-Meta':false},
-      signal:controller.signal
-    });
+    const res=await fetch(API_URL, {signal:controller.signal});
     let records=[];
     if(res.ok){
       const j=await res.json();
@@ -541,9 +536,9 @@ async function saveToBin(overwrite){
     // 저장 (최근 60개만 유지)
     if(records.length>60) records=records.slice(-60);
 
-    const saveRes=await fetch(JSONBIN+'/'+jbBin,{
+    const saveRes=await fetch(API_URL,{
       method:'PUT',
-      headers:{'Content-Type':'application/json','X-Master-Key':jbKey},
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify(records),
       signal:controller.signal
     });
@@ -565,7 +560,7 @@ async function saveToBin(overwrite){
   }
 }
 
-// ── JSONBIN LOAD (PC) ──
+// ── 클라우드 로드 (PC) ──
 async function loadBinSilent(){
   // localStorage 캐시 먼저 로드 (네트워크 차단 환경 대비)
   try{
@@ -574,9 +569,7 @@ async function loadBinSilent(){
   } catch(e){}
   // 네트워크 로드 시도
   try{
-    const res=await fetch(JSONBIN+'/'+jbBin+'/latest',{
-      headers:{'X-Master-Key':jbKey,'X-Bin-Meta':false}
-    });
+    const res=await fetch(API_URL);
     if(!res.ok) return;
     const j=await res.json();
     const fresh=Array.isArray(j)?j:Array.isArray(j.record)?j.record:[];
@@ -587,9 +580,7 @@ async function loadBinSilent(){
 async function loadFromBin(){
   setSyncState('loading','불러오는 중...');
   try{
-    const res=await fetch(JSONBIN+'/'+jbBin+'/latest',{
-      headers:{'X-Master-Key':jbKey,'X-Bin-Meta':false}
-    });
+    const res=await fetch(API_URL);
     if(!res.ok) throw new Error(res.status);
     const j=await res.json();
     binData=Array.isArray(j)?j:Array.isArray(j.record)?j.record:[];
@@ -799,16 +790,14 @@ ${'<'+'/scri'+'pt>'}
 async function deleteRecord(id){
   if(!confirm('이 기록을 삭제할까요?')) return;
   try{
-    const res=await fetch(JSONBIN+'/'+jbBin+'/latest',{
-      headers:{'X-Master-Key':jbKey,'X-Bin-Meta':false}
-    });
+    const res=await fetch(API_URL);
     if(!res.ok) throw new Error(res.status);
     const j=await res.json();
     let records=Array.isArray(j)?j:Array.isArray(j.record)?j.record:[];
     records=records.filter(r=>r.id!==id);
-    const saveRes=await fetch(JSONBIN+'/'+jbBin,{
+    const saveRes=await fetch(API_URL,{
       method:'PUT',
-      headers:{'Content-Type':'application/json','X-Master-Key':jbKey},
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify(records)
     });
     if(!saveRes.ok) throw new Error(saveRes.status);
