@@ -688,7 +688,7 @@ function printReport(){
   const inspector=latest.inspector;
   const shift=latest.shift;
   const timeStr=latest.time;
-  const timeRangeMap={'07':'06:30 ~ 07:00','10':'09:30 ~ 10:00','15':'14:30 ~ 15:00','22':'21:30 ~ 22:00'};
+  const timeRangeMap={'07':'06:30 ~ 07:00','10':'09:30 ~ 10:00','15':'14:30 ~ 15:30','22':'21:30 ~ 22:00'};
   const timeRange=timeRangeMap[latest.timeVal]||latest.time;
   const dateStr=(now.getMonth()+1)+'/'+now.getDate()+' '+timeRange;
 
