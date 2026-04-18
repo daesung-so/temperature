@@ -321,6 +321,7 @@ function startApp(){
 
   buildTabs();
   buildPanels();
+  restoreDraft(); // 새로고침 전 임시 데이터 복원
   updateProgress();
   setMode('mobile');
   initLongPress(); // appMain 표시 후 즉시 바인딩
@@ -402,6 +403,11 @@ function onInput(floor,unit,field,rawValue){
   }
   data[floor][unit][field]=value;
   updateCard(floor,unit); updateBadge(floor); updateProgress();
+  // 입력 중 자동저장
+  try{ localStorage.setItem('temp_draft', JSON.stringify({
+    data, inspector: document.getElementById('inspector').value,
+    shift: document.getElementById('shift').value
+  })); } catch(e){}
 
   if(autoAdvance){
     if(field==='temp'){
@@ -449,6 +455,35 @@ function updateProgress(){
   document.getElementById('progressText').textContent=filled+' / '+total;
   document.getElementById('progressFill').style.width=(total>0?(filled/total)*100:0)+'%';
   const sb=document.getElementById('saveBtn'); if(sb) sb.disabled=filled===0;
+}
+
+
+// ── 임시저장 복원 ──
+function restoreDraft(){
+  try{
+    const raw=localStorage.getItem('temp_draft');
+    if(!raw) return;
+    const draft=JSON.parse(raw);
+    if(!draft.data) return;
+    // 데이터 복원
+    Object.keys(FLOORS).forEach(f=>{
+      FLOORS[f].units.forEach(u=>{
+        if(draft.data[f]&&draft.data[f][u]){
+          data[f][u]=draft.data[f][u];
+          const t=document.getElementById('temp-'+f+'-'+u);
+          const h=document.getElementById('hum-'+f+'-'+u);
+          if(t) t.value=draft.data[f][u].temp;
+          if(h) h.value=draft.data[f][u].hum;
+          updateCard(f,u);
+        }
+      });
+      updateBadge(f);
+    });
+    // 점검자/시간 복원
+    if(draft.inspector) document.getElementById('inspector').value=draft.inspector;
+    if(draft.shift) document.getElementById('shift').value=draft.shift;
+    showToast('이전 입력 데이터를 복원했어요','ok');
+  } catch(e){}
 }
 
 // ── 클라우드 저장 ──
@@ -545,6 +580,7 @@ async function saveToBin(overwrite){
     if(!saveRes.ok) throw new Error(saveRes.status);
     showToast('클라우드 저장 완료 ✓','ok');
     binData=records;
+    try{ localStorage.removeItem('temp_draft'); } catch(e){}
     try{ localStorage.setItem('binData_cache', JSON.stringify(binData)); } catch(e){}
   } catch(e){
     if(e.name==='AbortError'){
