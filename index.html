@@ -486,8 +486,22 @@ function restoreDraft(){
   } catch(e){}
 }
 
+
+// ── 저장 전 덮어쓰기 확인 ──
+function checkBeforeSave(){
+  const timeVal=document.getElementById('shift').value;
+  const now=new Date();
+  const todayStr=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+  const existing=binData.find(r=>r.date===todayStr&&r.timeVal===timeVal);
+  if(existing){
+    const msg='['+timeVal+'시] 기록이 이미 있어요.\n점검자: '+existing.inspector+'\n\n덮어쓰시겠어요?';
+    if(!confirm(msg)) return;
+  }
+  saveToBin(true);
+}
+
 // ── 클라우드 저장 ──
-document.getElementById('saveBtn').addEventListener('click', ()=>saveToBin(true));
+document.getElementById('saveBtn').addEventListener('click', ()=>checkBeforeSave());
 
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 
