@@ -101,6 +101,56 @@ def health():
     return jsonify({'ok': True})
 
 
+def make_summary_formulas(schema, row_num):
+    """각 층의 요약 수식 생성 (이전 행에 수식이 없어도 동작)"""
+    from openpyxl.utils import get_column_letter
+    units = schema['units']
+    sc = schema['start_col']  # 9
+    
+    # 온도/습도 셀 참조
+    temp_refs = [get_column_letter(sc + i*2)     + str(row_num) for i in range(len(units))]
+    hum_refs  = [get_column_letter(sc + i*2 + 1) + str(row_num) for i in range(len(units))]
+    
+    # 요약 컬럼 시작
+    s = sc + len(units) * 2  # 2층=25(Y), 3층=17(Q)
+    
+    # 호기 위치 표시용: 각 호기의 라벨이 있는 셀 ($I$2, $K$2, ...)
+    pos_refs_t = [f'$' + get_column_letter(sc + i*2) + '$2' for i in range(len(units))]
+    pos_refs_h = [f'$' + get_column_letter(sc + i*2 + 1) + '$2' for i in range(len(units))]
+    
+    Y  = get_column_letter(s)       # 평균온도
+    Z  = get_column_letter(s + 1)   # 평균습도
+    AA = get_column_letter(s + 2)   # 최고온도
+    AB = get_column_letter(s + 3)   # 최저습도
+    
+    # 판정: IF(OR(MIN<21, MAX>27), "불량", "양호")  - 온도 기준
+    # 판정: IF(OR(MIN<30, MAX>70), "불량", "양호")  - 습도 기준
+    judge_t = f'=IF(OR(MIN({",".join(temp_refs)})<21,MAX({",".join(temp_refs)})>27),"불량","양호")'
+    judge_h = f'=IF(OR(MIN({",".join(hum_refs)})<30,MAX({",".join(hum_refs)})>70),"불량","양호")'
+    
+    # 위치: IF(MAX=I, $I$2, IF(MAX=K, $K$2, ...))
+    def make_pos_formula(max_ref, val_refs, pos_refs):
+        # IF 중첩
+        result = f'""'
+        for vr, pr in zip(reversed(val_refs), reversed(pos_refs)):
+            result = f'IF({max_ref}={vr},{pr},{result})'
+        return '=' + result
+    
+    pos_t = make_pos_formula(f'{AA}{row_num}', temp_refs, pos_refs_t)
+    pos_h = make_pos_formula(f'{AB}{row_num}', hum_refs, pos_refs_h)
+    
+    return {
+        s:     f'=AVERAGE({",".join(temp_refs)})',  # Y: 평균온도
+        s + 1: f'=AVERAGE({",".join(hum_refs)})',   # Z: 평균습도
+        s + 2: f'=MAX({",".join(temp_refs)})',      # AA: 최고온도
+        s + 3: f'=MIN({",".join(hum_refs)})',       # AB: 최저습도
+        s + 4: judge_t,                             # AC: 온도판정
+        s + 5: judge_h,                             # AD: 습도판정
+        s + 7: pos_t,                               # AF: 온도위치
+        s + 8: pos_h,                               # AG: 습도위치
+    }
+
+
 @app.route('/update-xlsm', methods=['POST', 'OPTIONS'])
 def update_xlsm():
     if request.method == 'OPTIONS':
@@ -188,6 +238,11 @@ def update_xlsm():
                 h = float(h_val) if h_val != '' else None
                 ws.cell(row=new_row, column=sc + i*2).value     = t
                 ws.cell(row=new_row, column=sc + i*2 + 1).value = h
+            
+            # 요약 수식 직접 생성 (이전 행 의존 X)
+            summary_formulas = make_summary_formulas(schema, new_row)
+            for col, formula in summary_formulas.items():
+                ws.cell(row=new_row, column=col).value = formula
 
             # 스타일 + 수식 복사 (template_row 기준)
             data_end_col = schema['start_col'] + len(schema['units']) * 2 - 1
