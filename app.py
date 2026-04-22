@@ -89,6 +89,15 @@ def update_xlsm():
                     break
             new_row = last_row + 1
             new_no  = last_no + 1
+            
+            # 수식이 있는 템플릿 행 찾기 (요약 컬럼에 수식 있는 마지막 행)
+            summary_col = schema['start_col'] + len(schema['units']) * 2  # Y, Q 등
+            template_row = last_row
+            for r in range(last_row, 3, -1):
+                val = ws.cell(row=r, column=summary_col).value
+                if isinstance(val, str) and val.startswith('='):
+                    template_row = r
+                    break
 
             ws.cell(row=new_row, column=1).value = key
             ws.cell(row=new_row, column=2).value = new_no
@@ -111,17 +120,39 @@ def update_xlsm():
                 ws.cell(row=new_row, column=sc + i*2).value     = t
                 ws.cell(row=new_row, column=sc + i*2 + 1).value = h
 
-            # 스타일 복사 (최소한만)
+            # 스타일 + 수식 복사 (템플릿 행 기준)
             from copy import copy
-            prev_row = last_row
-            # 실제 사용되는 컬럼만 복사 (전체 max_column은 너무 많음)
-            max_data_col = max(8, schema['start_col'] + len(schema['units']) * 2 + 6)
-            for col in range(1, max_data_col + 1):
+            import re
+            prev_row = template_row
+            data_end_col = schema['start_col'] + len(schema['units']) * 2 - 1  # 온도/습도 마지막 컬럼
+            
+            for col in range(1, ws.max_column + 1):
                 src = ws.cell(row=prev_row, column=col)
                 dst = ws.cell(row=new_row, column=col)
+                
+                # 스타일 복사
                 if src.has_style:
                     dst._style = copy(src._style)
                     dst.number_format = src.number_format
+                
+                # 수식 복사 (데이터 컬럼 이후의 수식 컬럼만)
+                # 온도/습도/기본정보 컬럼은 이미 위에서 값을 넣었으므로 건드리지 않음
+                if col > data_end_col and isinstance(src.value, str) and src.value.startswith('='):
+                    # 수식 내 행 번호 치환: A123 → A124 (행 번호만 변경)
+                    formula = src.value
+                    # 현재 행 번호(prev_row)를 새 행 번호(new_row)로 변경
+                    # 단, 절대 참조($1)는 유지
+                    # 행 번호만 치환 ($로 시작하는 절대 참조는 유지)
+                    # 예: A1749 → A1750, $A1749 → $A1750, A$1749 → A$1749 (절대참조 유지)
+                    old_r = str(prev_row)
+                    new_r = str(new_row)
+                    # 패턴: (컬럼문자)(행번호) - 행에 $가 없을 때만
+                    new_formula = re.sub(
+                        r'([A-Z]+)' + old_r + r'\b',
+                        lambda m: m.group(1) + new_r,
+                        formula
+                    )
+                    dst.value = new_formula
 
         date_part = date_str.replace('-', '')[2:]
         filename = f'일일점검사항_v8__{date_part}_{time_val}시.xlsm'
