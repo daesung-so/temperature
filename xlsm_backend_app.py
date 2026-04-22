@@ -286,17 +286,14 @@ async def process_xlsm(file: UploadFile = File(...)):
         output_name = make_output_filename(latest)
 
         headers = {
-            "Content-Disposition": f"attachment; filename*=UTF-8''{requests.utils.quote(output_name)}",
-            "X-Updated-Sheets": ",".join(updated),
-            "X-Record-Date": str(date_str),
-            "X-Record-Time": str(time_str),
-        }
+    "Content-Disposition": f"attachment; filename*=UTF-8''{requests.utils.quote(output_name)}"
+}
 
-        return StreamingResponse(
-            out,
-            media_type="application/vnd.ms-excel.sheet.macroEnabled.12",
-            headers=headers
-        )
+return StreamingResponse(
+    out,
+    media_type="application/vnd.ms-excel.sheet.macroEnabled.12",
+    headers=headers
+)
 
     except requests.RequestException as e:
         return JSONResponse(
