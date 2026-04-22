@@ -9,10 +9,8 @@ from datetime import datetime
 import openpyxl
 import requests
 
-
 app = FastAPI()
 
-# github.io -> render 요청 허용
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://daesung-so.github.io"],
@@ -59,7 +57,6 @@ def find_sheet_name(workbook, floor_name: str):
         if key in normalized_map:
             return normalized_map[key]
 
-    # 부분 일치 fallback
     for ws in workbook.worksheets:
         title_norm = normalize_text(ws.title)
         for cand in candidates:
@@ -76,7 +73,6 @@ def get_latest_record():
     if not isinstance(data, list) or not data:
         raise ValueError("온습도 저장 데이터가 비어있습니다.")
 
-    # createdAt / updatedAt / date+time 기준으로 최신값 찾기
     def sort_key(item):
         created = item.get("createdAt") or item.get("updatedAt") or ""
         date_str = item.get("date") or ""
@@ -92,21 +88,15 @@ def parse_datetime_from_record(record: dict):
     time_str = str(record.get("time") or "").strip()
 
     if not date_str:
-        now = datetime.now()
-        return now
+        return datetime.now()
 
-    # 예: 2026-04-22 / 2026.04.22 / 20260422
     date_str_clean = date_str.replace(".", "-").replace("/", "-").strip()
 
-    dt = None
     candidates = []
-
     if time_str:
-        candidates.extend([
-            f"{date_str_clean} {time_str}",
-        ])
+        candidates.append(f"{date_str_clean} {time_str}")
+    candidates.append(date_str_clean)
 
-    # 지원 포맷들
     formats = [
         "%Y-%m-%d %H:%M",
         "%Y-%m-%d %H시",
@@ -118,25 +108,22 @@ def parse_datetime_from_record(record: dict):
         "%Y%m%d",
     ]
 
-    for candidate in candidates + [date_str_clean]:
+    for candidate in candidates:
         for fmt in formats:
             try:
-                dt = datetime.strptime(candidate, fmt)
-                return dt
+                return datetime.strptime(candidate, fmt)
             except Exception:
                 pass
 
-    # 마지막 fallback
     return datetime.now()
 
 
 def make_output_filename(record: dict):
     dt = parse_datetime_from_record(record)
-    return f"일일점검사항_v8__{dt.strftime('%Y%m%d_%H시')}.xlsm"
+    return f"inspection_{dt.strftime('%Y%m%d_%H')}.xlsm"
 
 
 def copy_row_style_and_formulas(ws, src_row: int, dst_row: int):
-    # 행 높이
     if ws.row_dimensions[src_row].height is not None:
         ws.row_dimensions[dst_row].height = ws.row_dimensions[src_row].height
 
@@ -147,39 +134,13 @@ def copy_row_style_and_formulas(ws, src_row: int, dst_row: int):
         if src.has_style:
             dst._style = src._style
 
-        if src.number_format:
-            dst.number_format = src.number_format
-
-        if src.font:
-            dst.font = src.font.copy()
-
-        if src.fill:
-            dst.fill = src.fill.copy()
-
-        if src.border:
-            dst.border = src.border.copy()
-
-        if src.alignment:
-            dst.alignment = src.alignment.copy()
-
-        if src.protection:
-            dst.protection = src.protection.copy()
-
-        # 바로 위 행 수식을 한 줄 아래로 자동 보정 복사
         if isinstance(src.value, str) and src.value.startswith("="):
-            # 아주 단순한 행번호 치환
             formula = src.value
-            formula = re.sub(
-                rf"(?<![A-Z]){src_row}(?!\d)",
-                str(dst_row),
-                formula
-            )
+            formula = re.sub(rf"(?<!\d){src_row}(?!\d)", str(dst_row), formula)
             dst.value = formula
 
 
 def find_target_row(ws, date_str: str, time_str: str):
-    # A열=날짜, B열=시간 가정
-    # 같은 날짜/시간 있으면 그 행 반환, 없으면 새 행
     last_data_row = max(ws.max_row, 2)
 
     for row in range(2, last_data_row + 1):
@@ -192,8 +153,6 @@ def find_target_row(ws, date_str: str, time_str: str):
 
 
 def floor_values_from_record(record: dict):
-    # 최대한 유연하게 읽음
-    # 예: record["floors"]["2층"] 또는 record["2층"]
     result = {}
 
     floors = record.get("floors")
@@ -210,14 +169,11 @@ def floor_values_from_record(record: dict):
 
 
 def write_floor_row(ws, row: int, date_str: str, time_str: str, floor_data: dict):
-    # 기본 매핑
-    # A 날짜 / B 시간 / C 온도 / D 습도
     ws.cell(row, 1).value = date_str
     ws.cell(row, 2).value = time_str
     ws.cell(row, 3).value = floor_data.get("temperature")
     ws.cell(row, 4).value = floor_data.get("humidity")
 
-    # 선택적으로 메모/비고 넣을 수 있으면 E
     if "note" in floor_data:
         ws.cell(row, 5).value = floor_data.get("note")
 
@@ -242,22 +198,15 @@ async def process_xlsm(file: UploadFile = File(...)):
         )
 
         floors_map = floor_values_from_record(latest)
-        updated = []
 
         if not floors_map:
-            # 테스트용 fallback: 시트 하나 추가해서 연결 확인 가능하게 함
-            if "DATA" in wb.sheetnames:
-                ws = wb["DATA"]
-            else:
-                ws = wb.create_sheet("DATA")
-
+            ws = wb["DATA"] if "DATA" in wb.sheetnames else wb.create_sheet("DATA")
             ws["A1"] = "date"
             ws["B1"] = "time"
+            ws["C1"] = "message"
             ws["A2"] = date_str
             ws["B2"] = time_str
-            ws["C1"] = "message"
             ws["C2"] = "온습도 데이터 구조를 서버가 아직 매칭하지 못했습니다."
-            updated.append("DATA")
         else:
             for floor_name, floor_data in floors_map.items():
                 sheet_name = find_sheet_name(wb, floor_name)
@@ -277,7 +226,6 @@ async def process_xlsm(file: UploadFile = File(...)):
                     time_str=str(time_str),
                     floor_data=floor_data
                 )
-                updated.append(sheet_name)
 
         out = io.BytesIO()
         wb.save(out)
@@ -285,15 +233,13 @@ async def process_xlsm(file: UploadFile = File(...)):
 
         output_name = make_output_filename(latest)
 
-        headers = {
-    "Content-Disposition": f"attachment; filename*=UTF-8''{requests.utils.quote(output_name)}"
-}
-
-return StreamingResponse(
-    out,
-    media_type="application/vnd.ms-excel.sheet.macroEnabled.12",
-    headers=headers
-)
+        return StreamingResponse(
+            out,
+            media_type="application/vnd.ms-excel.sheet.macroEnabled.12",
+            headers={
+                "Content-Disposition": f"attachment; filename={output_name}"
+            }
+        )
 
     except requests.RequestException as e:
         return JSONResponse(
