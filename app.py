@@ -8,7 +8,11 @@ import os
 import json
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {
+    "origins": "*",
+    "methods": ["GET", "POST", "OPTIONS"],
+    "allow_headers": ["Content-Type"]
+}})
 
 # 층별 컬럼 구조 (엑셀 기준)
 FLOOR_SCHEMA = {
