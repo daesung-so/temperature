@@ -504,17 +504,38 @@ function checkBeforeSave(){
 
 // ── 층별 복사 버튼 생성 ──
 function buildFloorCopyBtns(){
-  const container=document.getElementById('floorCopyBtns');
-  if(!container) return;
-  container.innerHTML='';
-  FLOOR_LIST.forEach(f=>{
+  const row=document.getElementById('copyBtnRow');
+  const wrap=document.getElementById('floorCopyBtns');
+  if(!row||!wrap) return;
+  if(!binData.length){ row.style.display='none'; return; }
+  wrap.innerHTML='';
+  Object.keys(FLOORS).forEach(f=>{
     const btn=document.createElement('button');
-    btn.className='copy-btn';
-    btn.innerHTML='📋 '+f+' 복사';
-    btn.onclick=()=>copyFloor(f);
-    container.appendChild(btn);
+    btn.id='copybtn-'+f;
+    btn.style.cssText='padding:9px 16px;border-radius:var(--rs);font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border2);background:var(--card2);color:var(--text2);transition:all .15s;white-space:nowrap';
+    btn.textContent='📋 '+f+' 복사';
+    btn.onclick=async()=>{
+      const latest=binData[binData.length-1];
+      const text=generateTSV(f,latest);
+      try{
+        await navigator.clipboard.writeText(text);
+      } catch(e){
+        const ta=document.createElement('textarea');
+        ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+      }
+      const orig=btn.textContent;
+      btn.textContent='✓ 복사됨';
+      btn.style.background='var(--green)'; btn.style.color='#111'; btn.style.borderColor='var(--green)';
+      setTimeout(()=>{ btn.textContent=orig; btn.style.background='var(--card2)'; btn.style.color='var(--text2)'; btn.style.borderColor='var(--border2)'; },1500);
+      showToast(f+' 복사 완료 → xlsm '+f+' G열 Ctrl+V','ok');
+    };
+    wrap.appendChild(btn);
   });
+  row.style.display='';
 }
+
 
 // ── 클라우드 저장 ──
 document.getElementById('saveBtn').addEventListener('click', ()=>checkBeforeSave());
@@ -892,6 +913,8 @@ const FLOOR_SCHEMA = {
 
 
 // ── 엑셀 행 복사 (TSV) ──
+
+
 
 
 function generateTSV(floor, record){
