@@ -509,7 +509,7 @@ async function handleXlsmUpload(e){
   const label = document.getElementById('btnXlsm');
   label.style.opacity = '0.5';
   label.style.pointerEvents = 'none';
-  showToast('엑셀 처리 중... (최대 2분 소요)','warn');
+  showToast('엑셀 처리 중... (최대 1분 소요)','warn');
 
   try{
     const latest = binData[binData.length-1];
@@ -536,7 +536,7 @@ async function handleXlsmUpload(e){
     const dateObj = new Date(latest.date);
     const mon = String(dateObj.getMonth()+1).padStart(2,'0');
     const day = String(dateObj.getDate()).padStart(2,'0');
-    const fname = '일일점검사항_v8__' + dateObj.getFullYear().toString().slice(2) + mon + day + '_' + latest.timeVal + '시.xlsm';
+    const fname = '일일점검사항_v8__' + dateObj.getFullYear() + mon + day + '_' + latest.timeVal + '시.xlsm';
 
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
