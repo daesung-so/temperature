@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>장비실 온습도 점검</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600;700&family=Pretendard:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -210,15 +209,21 @@ select.meta-input option{background:var(--card)}
       <span id="syncLabel">데이터 불러오는 중...</span>
       <button onclick="loadFromBin()" style="margin-left:auto;background:none;border:1px solid var(--border2);border-radius:4px;color:var(--text2);font-family:var(--mono);font-size:10px;padding:3px 8px;cursor:pointer">새로고침</button>
     </div>
+    <!-- 층별 복사 버튼 -->
+    <div id="copyBtnRow" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px">
+      <div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.9);margin-bottom:8px;letter-spacing:.06em">
+        ▸ 엑셀 셀추가 후 → 층별 복사 → 해당 시트 G열 Ctrl+V
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="floorCopyBtns"></div>
+    </div>
     <div class="pc-header">
       <div>
         <div class="pc-title" id="pcTitle">온습도 점검 결과</div>
         <div class="pc-sub" id="pcSub"></div>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center">
-        <input id="xlsmUpload" type="file" accept=".xlsm,application/vnd.ms-excel.sheet.macroEnabled.12" style="display:none">
-        <button class="dl-btn" id="btnXlsm" onclick="triggerXlsmUpload()" disabled style="background:var(--green);color:#111">📂 엑셀 업로드</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
         <button class="dl-btn" id="btnReport" onclick="printReport()" disabled style="background:var(--cyan2);color:#fff">🖨 보고서 출력</button>
+
       </div>
     </div>
     <div id="pcContent"></div>
@@ -284,7 +289,6 @@ const LIM = { tMin:21, tMax:27, hMin:30, hMax:70 };
 // ── 상태 ──
 // ▼▼ Cloudflare Workers API URL ▼▼
 const API_URL = 'https://so-schedule.sungsu.workers.dev/api/temperature';
-const XLSM_BACKEND_URL = 'https://temperature-tyid.onrender.com';
 // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 let curFloor='2층', curMode='mobile';
 let data={};
@@ -321,7 +325,6 @@ function startApp(){
   updateProgress();
   setMode('mobile');
   initLongPress(); // appMain 표시 후 즉시 바인딩
-  refreshRecordOptions();
   loadBinSilent(); // 가라 기능용 binData 백그라운드 로드
 }
 
@@ -638,7 +641,6 @@ async function loadFromBin(){
   } catch(e){
     setSyncState('err','불러오기 실패: '+e.message);
     document.getElementById('pcContent').innerHTML='<div class="no-data">데이터를 불러올 수 없어요<br>'+e.message+'</div>';
-    refreshRecordOptions();
   }
 }
 
@@ -650,7 +652,6 @@ function setSyncState(state,msg){
 function renderPC(){
   if(!binData.length){
     document.getElementById('pcContent').innerHTML='<div class="no-data">저장된 점검 데이터가 없어요</div>';
-    refreshRecordOptions();
     return;
   }
   // 최신 기록 표시
@@ -661,6 +662,7 @@ function renderPC(){
     ' | 총 '+binData.length+'개 기록';
   // dlBtn removed
   const rpt=document.getElementById('btnReport'); if(rpt) rpt.disabled=false;
+  buildFloorCopyBtns();
 
   let html='';
   // 기록 목록 (최근 5개)
@@ -708,7 +710,6 @@ function renderPC(){
     html+='</tbody></table></div></div>';
   });
   document.getElementById('pcContent').innerHTML=html;
-  refreshRecordOptions();
 }
 
 
@@ -873,6 +874,62 @@ const FLOOR_SCHEMA = {
 // btnUpdate 활성화는 데이터 로드 후
 
 
+// ── 엑셀 행 복사 (TSV) ──
+// FLOOR_UNITS_MAP → FLOORS.units 로 통일
+
+function generateTSV(floor, record){
+  // xlsm 셀추가 매크로가 키/NO/날짜/수식 자동처리
+  // G열(시간)부터 붙여넣기용: 시간, 점검자, 각 호기 온도/습도만
+  const fd = record.floors[floor]||{};
+  const units = FLOORS[floor].units;
+  const timeVal = record.timeVal||'00';
+  const timeStr = timeVal+':00';
+
+  const row=[timeStr, record.inspector];
+  units.forEach(u=>{
+    const d=fd[u]||{temp:'',hum:''};
+    row.push(d.temp!==''?parseFloat(d.temp):'');
+    row.push(d.hum!==''?parseFloat(d.hum):'');
+  });
+
+  return row.map(v=>v===null||v===undefined?'':v).join('	');
+}
+
+function buildFloorCopyBtns(){
+  const row=document.getElementById('copyBtnRow');
+  const wrap=document.getElementById('floorCopyBtns');
+  if(!row||!wrap) return;
+  if(!binData.length){ row.style.display='none'; return; }
+  wrap.innerHTML='';
+  Object.keys(FLOORS).forEach(f=>{
+    const btn=document.createElement('button');
+    btn.id='copybtn-'+f;
+    btn.style.cssText='padding:9px 16px;border-radius:var(--rs);font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border2);background:var(--card2);color:var(--text2);transition:all .15s;white-space:nowrap';
+    btn.textContent='📋 '+f+' 복사';
+    btn.onclick=async()=>{
+      const latest=binData[binData.length-1];
+      const text=generateTSV(f,latest);
+      try{
+        await navigator.clipboard.writeText(text);
+      } catch(e){
+        const ta=document.createElement('textarea');
+        ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+      }
+      // 버튼 피드백
+      const orig=btn.textContent;
+      btn.textContent='✓ 복사됨';
+      btn.style.background='var(--green)'; btn.style.color='#111'; btn.style.borderColor='var(--green)';
+      setTimeout(()=>{ btn.textContent=orig; btn.style.background='var(--card2)'; btn.style.color='var(--text2)'; btn.style.borderColor='var(--border2)'; },1500);
+      showToast(f+' 복사 완료 → xlsm '+f+' G열 Ctrl+V','ok');
+    };
+    wrap.appendChild(btn);
+  });
+  row.style.display='';
+}
+
+
 
 // ── EXCEL DOWNLOAD ──
 async function downloadExcel(){
@@ -1000,115 +1057,6 @@ function colLetter(n){
   let s='';
   while(n>0){ s=String.fromCharCode(64+(n%26||26))+s; n=Math.floor((n-1)/26); }
   return s;
-}
-
-
-// ── XLSM 업로드/반영/다운로드 ──
-document.getElementById('xlsmUpload').addEventListener('change', async function(e){
-  const file=e.target.files&&e.target.files[0];
-  if(!file) return;
-  try{
-    await applyRecordToXlsm(file);
-  } finally {
-    e.target.value='';
-  }
-});
-
-function refreshRecordOptions(){
-  const btn=document.getElementById('btnXlsm');
-  if(!btn) return;
-  btn.disabled=!binData.length;
-}
-
-function getSelectedRecord(){
-  if(!binData.length) return null;
-  return binData[binData.length-1];
-}
-
-function triggerXlsmUpload(){
-  if(!binData.length){ showToast('먼저 저장된 점검 데이터를 불러와주세요','err'); return; }
-  const record=getSelectedRecord();
-  if(!record){ showToast('업로드할 최신 점검 기록이 없어요','err'); return; }
-  document.getElementById('xlsmUpload').click();
-}
-
-function getBackendBaseUrl(){
-  return String(XLSM_BACKEND_URL||'').trim().replace(/\/$/,'');
-}
-
-function getRecordLabel(record){
-  if(!record) return '';
-  const timeLabel=record.timeVal?record.timeVal+'시':(record.time||'');
-  return record.date+' '+timeLabel+' '+(record.shift||'');
-}
-
-function getFilenameFromDisposition(disposition){
-  if(!disposition) return null;
-  const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
-  if(utf8Match && utf8Match[1]) return decodeURIComponent(utf8Match[1]);
-  const simpleMatch = disposition.match(/filename=\"?([^\";]+)\"?/i);
-  if(simpleMatch && simpleMatch[1]) return simpleMatch[1];
-  return null;
-}
-
-async function applyRecordToXlsm(file){
-  const record=getSelectedRecord();
-  if(!record){ showToast('반영할 점검 기록이 없어요','err'); return; }
-
-  const backendBase=getBackendBaseUrl();
-  if(!backendBase || backendBase.includes('YOUR-RENDER-URL')){
-    showToast('백엔드 URL 설정이 필요해요','err');
-    alert('index 파일 안의 XLSM_BACKEND_URL 값을 Render 주소로 바꿔주세요.\n예: https://your-service.onrender.com');
-    return;
-  }
-
-  const btn=document.getElementById('btnXlsm');
-  const originalText=btn?btn.textContent:'';
-  try{
-    if(btn){ btn.disabled=true; btn.textContent='업로드 중...'; }
-    showToast('엑셀 업로드 중...','warn');
-
-    const form=new FormData();
-    form.append('file', file);
-    form.append('record_mode', 'latest');
-
-    if(btn) btn.textContent='처리 중...';
-    const res=await fetch(backendBase + '/process-xlsm', {
-      method:'POST',
-      body: form
-    });
-
-    if(!res.ok){
-      let msg='엑셀 업로드 실패';
-      try{
-        const err=await res.json();
-        msg = err.detail || err.error || JSON.stringify(err) || msg;
-      }catch(_){}
-      throw new Error(msg);
-    }
-
-    if(btn) btn.textContent='다운로드 중...';
-    const blob=await res.blob();
-    const downloadName=getFilenameFromDisposition(res.headers.get('Content-Disposition')) || 'updated.xlsm';
-    const summary=res.headers.get('X-Process-Summary') || ('최신 기록 반영 완료: '+getRecordLabel(record));
-
-    const a=document.createElement('a');
-    const url=URL.createObjectURL(blob);
-    a.href=url;
-    a.download=downloadName;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),1500);
-
-    showToast('엑셀 업로드 완료 ✓','ok');
-    setTimeout(()=>showToast(summary,'ok'),200);
-  } catch(e){
-    console.error(e);
-    showToast('엑셀 업로드 실패: '+e.message,'err');
-  } finally {
-    if(btn){ btn.disabled=false; btn.textContent=originalText||'📂 엑셀 업로드'; }
-  }
 }
 
 // ── TOAST ──
