@@ -33,23 +33,22 @@ DATA_SHEETS = {'2층', '3층', '5층', '6층', '8층'}
 
 
 def restore_drawings(processed_buf, original_bytes):
-    """openpyxl이 제거한 보조 파일들을 원본에서 복원
-    - sharedStrings.xml, calcChain.xml, drawings/, ctrlProps/, printerSettings/, _rels/
-    - 데이터 미입력 시트(종합그래프, 최고온도최저습도): 원본 sheet xml 그대로 복원
-    - 데이터 입력 시트: 처리본 sheet xml에 drawing/legacyDrawing/oleObjects 태그 주입
+    """openpyxl이 변경한 파일들을 원본에서 최대한 복원
+    - 데이터 입력 시트(2층, 3층, 5층, 6층, 8층): 처리본 사용 (새 행 포함)
+    - 그 외 모든 파일: 원본 그대로 복원 (workbook, styles, sharedStrings, drawings, sheet1, sheet7 등)
     """
+    import zipfile, re
+    
     processed_buf.seek(0)
 
-    # 원본 sheet 매핑 분석
-    orig_sheet_map = {}  # sheet_name → sheet_xml_path
-    restore_full = {}     # 원본 그대로 복원할 파일들
-    drawing_tags = {}     # 처리본 sheet_path → 주입할 drawing 태그 리스트
+    # 데이터 시트 식별 (workbook.xml과 rels에서 매핑)
+    DATA_SHEETS = {'2층', '3층', '5층', '6층', '8층'}
+    data_sheet_paths = set()  # 처리본에서 가져올 sheet xml 경로
 
     with zipfile.ZipFile(io.BytesIO(original_bytes), 'r') as orig_zip:
-        wb_xml  = orig_zip.read('xl/workbook.xml').decode('utf-8')
+        wb_xml = orig_zip.read('xl/workbook.xml').decode('utf-8')
         wb_rels = orig_zip.read('xl/_rels/workbook.xml.rels').decode('utf-8')
 
-        # 시트 이름 → rId
         sheet_rid = {}
         for m in re.finditer(r'<sheet\s+([^>]+?)/?>', wb_xml):
             attrs = m.group(1)
@@ -58,80 +57,35 @@ def restore_drawings(processed_buf, original_bytes):
             if n and r_:
                 sheet_rid[n.group(1)] = r_.group(1)
 
-        # rId → sheet 파일 경로
         rid_target = {}
         for m in re.finditer(r'<Relationship\s+([^>]+?)/>', wb_rels):
             attrs = m.group(1)
-            id_m  = re.search(r'Id="(rId\d+)"', attrs)
+            id_m = re.search(r'Id="(rId\d+)"', attrs)
             tgt_m = re.search(r'Target="(worksheets/sheet\d+\.xml)"', attrs)
             if id_m and tgt_m:
                 rid_target[id_m.group(1)] = tgt_m.group(1)
 
-        for sheet_name, rid in sheet_rid.items():
-            if rid in rid_target:
-                orig_sheet_map[sheet_name] = 'xl/' + rid_target[rid]
-
-        # 복원 대상 보조 파일들 모두 읽기
-        for name in orig_zip.namelist():
-            if (name.startswith('xl/drawings/')
-                or name.startswith('xl/ctrlProps/')
-                or name.startswith('xl/printerSettings/')
-                or name.startswith('xl/worksheets/_rels/')
-                or name == 'xl/sharedStrings.xml'
-                or name == 'xl/calcChain.xml'):
-                restore_full[name] = orig_zip.read(name)
-
-        # 데이터 미입력 시트는 원본 sheet xml 그대로 복원
-        for sheet_name, sheet_path in orig_sheet_map.items():
-            if sheet_name not in DATA_SHEETS:
-                restore_full[sheet_path] = orig_zip.read(sheet_path)
-
-        # 데이터 입력 시트는 drawing 관련 태그 추출
         for sheet_name in DATA_SHEETS:
-            if sheet_name not in orig_sheet_map:
-                continue
-            sheet_path = orig_sheet_map[sheet_name]
-            sheet_xml = orig_zip.read(sheet_path).decode('utf-8')
-            tags = []
-            for tag in ['drawing', 'legacyDrawing', 'oleObjects', 'controls']:
-                # self-closing 또는 open-close 둘 다
-                for m in re.finditer(
-                    rf'<{tag}\s[^/>]*/>|<{tag}\s[^>]*>.*?</{tag}>',
-                    sheet_xml, re.DOTALL
-                ):
-                    tags.append(m.group(0))
-            if tags:
-                drawing_tags[sheet_path] = tags
+            if sheet_name in sheet_rid:
+                rid = sheet_rid[sheet_name]
+                if rid in rid_target:
+                    data_sheet_paths.add('xl/' + rid_target[rid])
 
-        original_ct = orig_zip.read('[Content_Types].xml').decode('utf-8')
-
-    # 새 zip 작성
+    # 새 zip 작성: 원본을 베이스로, 데이터 시트만 처리본에서 가져오기
     new_buf = io.BytesIO()
-    with zipfile.ZipFile(processed_buf, 'r') as proc_zip:
-        with zipfile.ZipFile(new_buf, 'w', zipfile.ZIP_DEFLATED) as new_zip:
-            written = set()
-
-            for name in proc_zip.namelist():
-                if name in restore_full:
-                    continue  # 원본에서 복원할 것
-                if name == '[Content_Types].xml':
-                    new_zip.writestr(name, original_ct)
-                elif name in drawing_tags:
-                    # 데이터 시트: drawing 태그 주입
-                    sheet_xml = proc_zip.read(name).decode('utf-8')
-                    insert_str = ''.join(drawing_tags[name])
-                    sheet_xml = sheet_xml.replace(
-                        '</worksheet>', insert_str + '</worksheet>'
-                    )
-                    new_zip.writestr(name, sheet_xml)
-                else:
-                    new_zip.writestr(name, proc_zip.read(name))
-                written.add(name)
-
-            # 원본에서 복원
-            for name, data in restore_full.items():
-                if name not in written:
-                    new_zip.writestr(name, data)
+    with zipfile.ZipFile(io.BytesIO(original_bytes), 'r') as orig_zip:
+        with zipfile.ZipFile(processed_buf, 'r') as proc_zip:
+            with zipfile.ZipFile(new_buf, 'w', zipfile.ZIP_DEFLATED) as new_zip:
+                proc_files = set(proc_zip.namelist())
+                
+                # 원본의 모든 파일을 베이스로 사용
+                for name in orig_zip.namelist():
+                    if name in data_sheet_paths and name in proc_files:
+                        # 데이터 시트는 처리본 사용
+                        new_zip.writestr(name, proc_zip.read(name))
+                    else:
+                        # 그 외는 원본 그대로
+                        new_zip.writestr(name, orig_zip.read(name))
 
     new_buf.seek(0)
     return new_buf
