@@ -1058,8 +1058,7 @@ async function applyRecordToXlsm(file){
   const backendBase=getBackendBaseUrl();
   if(!backendBase || backendBase.includes('YOUR-RENDER-URL')){
     showToast('백엔드 URL 설정이 필요해요','err');
-    alert('index 파일 안의 XLSM_BACKEND_URL 값을 Render 주소로 바꿔주세요.
-예: https://your-service.onrender.com');
+    alert('index 파일 안의 XLSM_BACKEND_URL 값을 Render 주소로 바꿔주세요.\n예: https://your-service.onrender.com');
     return;
   }
 
