@@ -51,7 +51,7 @@ def restore_drawings(processed_buf, original_bytes):
 
         # 시트 이름 → rId
         sheet_rid = {}
-        for m in re.finditer(r'<sheet\s+([^/>]+)', wb_xml):
+        for m in re.finditer(r'<sheet\s+([^>]+?)/?>', wb_xml):
             attrs = m.group(1)
             n = re.search(r'name="([^"]+)"', attrs)
             r_ = re.search(r'r:id="(rId\d+)"', attrs)
@@ -60,7 +60,7 @@ def restore_drawings(processed_buf, original_bytes):
 
         # rId → sheet 파일 경로
         rid_target = {}
-        for m in re.finditer(r'<Relationship\s+([^/>]+)/>', wb_rels):
+        for m in re.finditer(r'<Relationship\s+([^>]+?)/>', wb_rels):
             attrs = m.group(1)
             id_m  = re.search(r'Id="(rId\d+)"', attrs)
             tgt_m = re.search(r'Target="(worksheets/sheet\d+\.xml)"', attrs)
