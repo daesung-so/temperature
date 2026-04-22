@@ -53,7 +53,7 @@ def update_xlsm():
         record = json.loads(request.form['data'])
 
         buf = io.BytesIO(xlsm_file.read())
-        wb = openpyxl.load_workbook(buf, keep_vba=True)
+        wb = openpyxl.load_workbook(buf, keep_vba=True, keep_links=False, data_only=False)
 
         date_str  = record.get('date', '')
         day_str   = record.get('day', '')
@@ -111,17 +111,16 @@ def update_xlsm():
                 ws.cell(row=new_row, column=sc + i*2).value     = t
                 ws.cell(row=new_row, column=sc + i*2 + 1).value = h
 
-            # 스타일 복사
+            # 스타일 복사 (최소한만)
             from copy import copy
             prev_row = last_row
-            for col in range(1, ws.max_column + 1):
+            # 실제 사용되는 컬럼만 복사 (전체 max_column은 너무 많음)
+            max_data_col = max(8, schema['start_col'] + len(schema['units']) * 2 + 6)
+            for col in range(1, max_data_col + 1):
                 src = ws.cell(row=prev_row, column=col)
                 dst = ws.cell(row=new_row, column=col)
                 if src.has_style:
-                    dst.font       = copy(src.font)
-                    dst.border     = copy(src.border)
-                    dst.fill       = copy(src.fill)
-                    dst.alignment  = copy(src.alignment)
+                    dst._style = copy(src._style)
                     dst.number_format = src.number_format
 
         date_part = date_str.replace('-', '')[2:]

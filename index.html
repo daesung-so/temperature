@@ -509,7 +509,7 @@ async function handleXlsmUpload(e){
   const label = document.getElementById('btnXlsm');
   label.style.opacity = '0.5';
   label.style.pointerEvents = 'none';
-  showToast('서버에 전송 중...','warn');
+  showToast('엑셀 처리 중... (최대 2분 소요)','warn');
 
   try{
     const latest = binData[binData.length-1];
@@ -518,7 +518,7 @@ async function handleXlsmUpload(e){
     formData.append('data', JSON.stringify(latest));
 
     const controller = new AbortController();
-    const timeout = setTimeout(()=>controller.abort(), 60000); // 60초
+    const timeout = setTimeout(()=>controller.abort(), 180000); // 180초
 
     const res = await fetch(RENDER_URL, {
       method: 'POST',
@@ -547,7 +547,7 @@ async function handleXlsmUpload(e){
 
   } catch(e){
     if(e.name === 'AbortError'){
-      showToast('서버 응답 시간 초과 (60초)','err');
+      showToast('서버 응답 시간 초과 (3분)','err');
     } else {
       showToast('오류: ' + e.message,'err');
     }
