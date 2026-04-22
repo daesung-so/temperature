@@ -1,20 +1,24 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, make_response
 from flask_cors import CORS
 import openpyxl
-from openpyxl.utils import get_column_letter
-from datetime import datetime, time
+from datetime import datetime, time as time_cls
 import io
 import os
 import json
+import traceback
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {
-    "origins": "*",
-    "methods": ["GET", "POST", "OPTIONS"],
-    "allow_headers": ["Content-Type"]
-}})
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=False)
 
-# 층별 컬럼 구조 (엑셀 기준)
+# 모든 응답에 CORS 헤더 강제 추가
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin']  = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    return response
+
+
 FLOOR_SCHEMA = {
     '2층': { 'units': [0,1,2,3,4,5,6,7], 'start_col': 9 },
     '3층': { 'units': [0,1,2,3],         'start_col': 9 },
@@ -23,46 +27,51 @@ FLOOR_SCHEMA = {
     '8층': { 'units': [0,1,2,3],         'start_col': 9 },
 }
 
-LIM = { 't_min': 21, 't_max': 27, 'h_min': 30, 'h_max': 70 }
+
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({'service': 'temperature-server', 'status': 'ok'})
+
 
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'ok': True})
 
-@app.route('/update-xlsm', methods=['POST'])
+
+@app.route('/update-xlsm', methods=['POST', 'OPTIONS'])
 def update_xlsm():
+    if request.method == 'OPTIONS':
+        return make_response('', 204)
+
     try:
-        # xlsm 파일 + 점검 데이터 수신
         if 'file' not in request.files:
-            return jsonify({'error': 'No file'}), 400
+            return jsonify({'error': 'No file uploaded'}), 400
         if 'data' not in request.form:
-            return jsonify({'error': 'No data'}), 400
+            return jsonify({'error': 'No data provided'}), 400
 
         xlsm_file = request.files['file']
         record = json.loads(request.form['data'])
 
-        # openpyxl로 xlsm 로드 (매크로 유지)
         buf = io.BytesIO(xlsm_file.read())
         wb = openpyxl.load_workbook(buf, keep_vba=True)
 
-        date_str = record.get('date', '')       # "2026-04-21"
-        day_str  = record.get('day', '')         # "월"
-        time_val = record.get('timeVal', '00')  # "07"
-        shift    = record.get('shift', '주간')
+        date_str  = record.get('date', '')
+        day_str   = record.get('day', '')
+        time_val  = record.get('timeVal', '00')
+        shift     = record.get('shift', '주간')
         inspector = record.get('inspector', '')
         floors_data = record.get('floors', {})
 
-        # 날짜 파싱
         try:
             date_obj = datetime.strptime(date_str, '%Y-%m-%d')
             mon = str(date_obj.month)
             day = str(date_obj.day).zfill(2)
         except:
-            mon = '0'; day = '00'
+            return jsonify({'error': f'Invalid date: {date_str}'}), 400
 
         key = mon + day + day_str + shift
         hh = int(time_val)
-        time_obj = time(hh, 0)
+        time_obj = time_cls(hh, 0)
 
         for floor_name, schema in FLOOR_SCHEMA.items():
             if floor_name not in wb.sheetnames:
@@ -70,7 +79,6 @@ def update_xlsm():
             ws = wb[floor_name]
             floor_data = floors_data.get(floor_name, {})
 
-            # 마지막 NO 찾기
             last_no = 0
             last_row = ws.max_row
             for r in range(ws.max_row, 3, -1):
@@ -82,7 +90,6 @@ def update_xlsm():
             new_row = last_row + 1
             new_no  = last_no + 1
 
-            # 기본 정보 입력
             ws.cell(row=new_row, column=1).value = key
             ws.cell(row=new_row, column=2).value = new_no
             ws.cell(row=new_row, column=3).value = mon
@@ -93,40 +100,33 @@ def update_xlsm():
             ws.cell(row=new_row, column=7).number_format = 'h:mm'
             ws.cell(row=new_row, column=8).value = inspector
 
-            # 호기별 온도/습도
             units = schema['units']
-            sc    = schema['start_col']
-            temps = []
-            hums  = []
+            sc = schema['start_col']
             for i, u in enumerate(units):
                 d = floor_data.get(str(u), {})
                 t_val = d.get('temp', '')
                 h_val = d.get('hum', '')
                 t = float(t_val) if t_val != '' else None
                 h = float(h_val) if h_val != '' else None
-                ws.cell(row=new_row, column=sc + i*2).value = t
+                ws.cell(row=new_row, column=sc + i*2).value     = t
                 ws.cell(row=new_row, column=sc + i*2 + 1).value = h
-                if t is not None: temps.append(t)
-                if h is not None: hums.append(h)
 
-            # 이전 행에서 스타일 복사
+            # 스타일 복사
+            from copy import copy
             prev_row = last_row
             for col in range(1, ws.max_column + 1):
                 src = ws.cell(row=prev_row, column=col)
                 dst = ws.cell(row=new_row, column=col)
                 if src.has_style:
-                    from copy import copy
                     dst.font       = copy(src.font)
                     dst.border     = copy(src.border)
                     dst.fill       = copy(src.fill)
                     dst.alignment  = copy(src.alignment)
                     dst.number_format = src.number_format
 
-        # 파일명 생성
-        date_part = date_str.replace('-', '')[2:]  # 260421
+        date_part = date_str.replace('-', '')[2:]
         filename = f'일일점검사항_v8__{date_part}_{time_val}시.xlsm'
 
-        # 출력
         out_buf = io.BytesIO()
         wb.save(out_buf)
         out_buf.seek(0)
@@ -139,8 +139,9 @@ def update_xlsm():
         )
 
     except Exception as e:
-        import traceback
-        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
+        print('ERROR:', str(e))
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
