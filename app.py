@@ -96,6 +96,14 @@ def index():
     return jsonify({'service': 'temperature-server', 'status': 'ok'})
 
 
+@app.route('/version', methods=['GET'])
+def version():
+    return jsonify({
+        'version': 'v6-formula-direct',
+        'has_formula_generator': 'make_summary_formulas' in globals(),
+    })
+
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'ok': True})
