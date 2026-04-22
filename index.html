@@ -1082,7 +1082,7 @@ async function applyRecordToXlsm(file){
       let msg='엑셀 업로드 실패';
       try{
         const err=await res.json();
-        msg=err.detail||msg;
+        msg = err.detail || err.error || JSON.stringify(err) || msg;
       }catch(_){}
       throw new Error(msg);
     }
