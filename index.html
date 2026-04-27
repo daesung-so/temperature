@@ -171,6 +171,7 @@ select.meta-input option{background:var(--card)}
       <div class="header-actions">
         <div id="dateLabel" style="font-family:var(--mono);font-size:10px;color:var(--text3)"></div>
         <button class="hbtn" id="btnOrder" onclick="toggleOrder()" title="입력 순서 전환">장비실순</button>
+        <button class="hbtn" onclick="resetInput()" title="입력 초기화" style="color:var(--red,#f87171)">초기화</button>
         <button class="hbtn" id="btnMobile" onclick="setMode('mobile')">📱 입력</button>
         <button class="hbtn" id="btnPC" onclick="setMode('pc')">💻 PC</button>
         
@@ -536,6 +537,26 @@ function buildFloorCopyBtns(){
   row.style.display='';
 }
 
+
+
+// ── 입력 초기화 ──
+function resetInput(){
+  if(!confirm('입력 데이터를 초기화할까요?\n저장되지 않은 내용은 사라져요.')) return;
+  initData();
+  Object.keys(FLOORS).forEach(floor=>{
+    FLOORS[floor].units.forEach(u=>{
+      const t=document.getElementById('temp-'+floor+'-'+u);
+      const h=document.getElementById('hum-'+floor+'-'+u);
+      if(t) t.value='';
+      if(h) h.value='';
+      updateCard(floor,u);
+    });
+    updateBadge(floor);
+  });
+  try{ localStorage.removeItem('temp_draft'); } catch(e){}
+  updateProgress();
+  showToast('초기화 완료','ok');
+}
 
 // ── 클라우드 저장 ──
 document.getElementById('saveBtn').addEventListener('click', ()=>checkBeforeSave());
