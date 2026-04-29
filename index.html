@@ -296,6 +296,35 @@ let data={};
 let binData=[]; // 저장된 점검 목록
 initData();
 
+function escapeHTML(value){
+  return String(value ?? '').replace(/[&<>"']/g, ch=>({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[ch]));
+}
+
+function normalizeRecords(payload){
+  return Array.isArray(payload) ? payload : (Array.isArray(payload&&payload.record) ? payload.record : []);
+}
+
+function emptyFloors(){
+  const floors={};
+  Object.keys(FLOORS).forEach(f=>{ floors[f]={}; FLOORS[f].units.forEach(u=>{ floors[f][u]={temp:'',hum:''}; }); });
+  return floors;
+}
+
+async function fetchJSON(url, options={}, timeoutMs=10000){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(), timeoutMs);
+  try{
+    const res=await fetch(url, {...options, signal:controller.signal});
+    if(!res.ok) throw new Error(res.status);
+    const text=await res.text();
+    return text ? JSON.parse(text) : null;
+  } finally{
+    clearTimeout(timer);
+  }
+}
+
 function initData(){
   data={};
   Object.keys(FLOORS).forEach(f=>{ data[f]={}; FLOORS[f].units.forEach(u=>{ data[f][u]={temp:'',hum:''}; }); });
@@ -325,8 +354,8 @@ function startApp(){
   restoreDraft(); // 새로고침 전 임시 데이터 복원
   updateProgress();
   setMode('mobile');
-  initLongPress(); // appMain 표시 후 즉시 바인딩
-  loadBinSilent(); // 가라 기능용 binData 백그라운드 로드
+  initLongPress();
+  loadBinSilent();
 }
 
 function setMode(mode){
@@ -438,7 +467,10 @@ function updateCard(floor,unit){
     card.className='unit-card '+(ok?'ok':'bad');
     st.className='unit-status '+(ok?'ok':'bad');
     st.textContent=ok?'양호':'불량'; st.style.display='';
+    return;
   }
+  card.className='unit-card';
+  st.style.display='none';
 }
 function updateBadge(floor){
   const badge=document.getElementById('badge-'+floor);
@@ -470,11 +502,14 @@ function restoreDraft(){
     Object.keys(FLOORS).forEach(f=>{
       FLOORS[f].units.forEach(u=>{
         if(draft.data[f]&&draft.data[f][u]){
-          data[f][u]=draft.data[f][u];
+          data[f][u]={
+            temp: draft.data[f][u].temp ?? '',
+            hum: draft.data[f][u].hum ?? ''
+          };
           const t=document.getElementById('temp-'+f+'-'+u);
           const h=document.getElementById('hum-'+f+'-'+u);
-          if(t) t.value=draft.data[f][u].temp;
-          if(h) h.value=draft.data[f][u].hum;
+          if(t) t.value=data[f][u].temp;
+          if(h) h.value=data[f][u].hum;
           updateCard(f,u);
         }
       });
@@ -570,6 +605,8 @@ async function saveToBin(overwrite){
     FLOORS[floor].units.forEach(u=>{
       const d=data[floor][u];
       const t=parseFloat(d.temp), h=parseFloat(d.hum);
+      if(d.temp!==''&&!Number.isFinite(t)) errors.push(floor+' '+u+'호기 온도 입력값');
+      if(d.hum!==''&&!Number.isFinite(h)) errors.push(floor+' '+u+'호기 습도 입력값');
       if(d.temp!==''&&(t<0||t>50)) errors.push(floor+' '+u+'호기 온도('+t+'°C)');
       if(d.hum!==''&&(h<0||h>100)) errors.push(floor+' '+u+'호기 습도('+h+'%)');
     });
@@ -580,8 +617,7 @@ async function saveToBin(overwrite){
   }
 
   const now=new Date(), days=['일','월','화','수','목','금','토'];
-  const inspector=document.getElementById('inspector').value||'(미입력)';
-  const shift=document.getElementById('shift').value;
+  const inspector=(document.getElementById('inspector').value||'').trim()||'(미입력)';
   const timeVal=document.getElementById('shift').value; // '07','10','15','22'
   const shiftLabel=(timeVal==='22'?'야간':'주간');
   const endTimeVal='';
@@ -603,17 +639,13 @@ async function saveToBin(overwrite){
   if(sb){ sb.disabled=true; sb.textContent='저장 중...'; }
   showToast('클라우드 저장 중...','warn');
 
-  // 10초 타임아웃
-  const controller=new AbortController();
-  const timeout=setTimeout(()=>controller.abort(),10000);
-
   try{
     // 현재 bin 데이터 읽기
-    const res=await fetch(API_URL, {signal:controller.signal});
     let records=[];
-    if(res.ok){
-      const j=await res.json();
-      records=Array.isArray(j)?j:Array.isArray(j.record)?j.record:[];
+    try{
+      records=normalizeRecords(await fetchJSON(API_URL));
+    } catch(e){
+      records=Array.isArray(binData) ? binData.slice() : [];
     }
 
     // 같은 날 같은 시간대 기존 레코드와 병합
@@ -621,8 +653,10 @@ async function saveToBin(overwrite){
     const idx=records.findIndex(r=>r.date===todayStr&&r.timeVal===timeVal);
     if(idx>=0){
       const existing=records[idx];
+      existing.floors=existing.floors||emptyFloors();
       // 층별로 입력된 값만 병합 (기존값 유지 + 새값 덮어쓰기)
       Object.keys(FLOORS).forEach(floor=>{
+        existing.floors[floor]=existing.floors[floor]||{};
         FLOORS[floor].units.forEach(u=>{
           const newD=record.floors[floor][u];
           const hasNew=newD.temp!==''||newD.hum!=='';
@@ -643,13 +677,11 @@ async function saveToBin(overwrite){
     // 저장 (최근 60개만 유지)
     if(records.length>60) records=records.slice(-60);
 
-    const saveRes=await fetch(API_URL,{
+    await fetchJSON(API_URL,{
       method:'PUT',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(records),
-      signal:controller.signal
+      body:JSON.stringify(records)
     });
-    if(!saveRes.ok) throw new Error(saveRes.status);
     showToast('클라우드 저장 완료 ✓','ok');
     binData=records;
     try{ localStorage.removeItem('temp_draft'); } catch(e){}
@@ -662,7 +694,6 @@ async function saveToBin(overwrite){
     }
     console.error(e);
   } finally{
-    clearTimeout(timeout);
     const sb2=document.getElementById('saveBtn');
     if(sb2){ sb2.textContent='☁ 저장'; sb2.disabled=false; updateProgress(); }
   }
@@ -677,10 +708,7 @@ async function loadBinSilent(){
   } catch(e){}
   // 네트워크 로드 시도
   try{
-    const res=await fetch(API_URL);
-    if(!res.ok) return;
-    const j=await res.json();
-    const fresh=Array.isArray(j)?j:Array.isArray(j.record)?j.record:[];
+    const fresh=normalizeRecords(await fetchJSON(API_URL, {}, 7000));
     if(fresh.length){ binData=fresh; localStorage.setItem('binData_cache',JSON.stringify(binData)); }
   } catch(e){ /* 캐시 데이터 사용 */ }
 }
@@ -688,10 +716,7 @@ async function loadBinSilent(){
 async function loadFromBin(){
   setSyncState('loading','불러오는 중...');
   try{
-    const res=await fetch(API_URL);
-    if(!res.ok) throw new Error(res.status);
-    const j=await res.json();
-    binData=Array.isArray(j)?j:Array.isArray(j.record)?j.record:[];
+    binData=normalizeRecords(await fetchJSON(API_URL));
     setSyncState('ok','동기화 완료 · '+binData.length+'개 기록');
     // localStorage에 캐시 저장 (오프라인/차단 환경용)
     try{ localStorage.setItem('binData_cache', JSON.stringify(binData)); } catch(e){}
@@ -716,7 +741,7 @@ function renderPC(){
   const latest=binData[binData.length-1];
   document.getElementById('pcTitle').textContent='온습도 점검 결과';
   document.getElementById('pcSub').textContent=
-    latest.date+' ('+latest.day+') '+latest.shift+' · 점검자: '+latest.inspector+
+    (latest.date||'')+' ('+(latest.day||'')+') '+(latest.shift||'')+' · 점검자: '+(latest.inspector||'')+
     ' | 총 '+binData.length+'개 기록';
   // dlBtn removed
   const rpt=document.getElementById('btnReport'); if(rpt) rpt.disabled=false;
@@ -731,30 +756,33 @@ function renderPC(){
   recent.forEach((r,i)=>{
     const isLatest=i===0;
     html+='<tr style="'+(isLatest?'background:rgba(56,189,248,.05)':'')+'">';
-    html+='<td class="unit">'+r.date.slice(5)+' ('+r.day+')</td>';
-    html+='<td>'+(r.timeVal?r.timeVal+'시':r.shift)+'</td><td>'+r.shift+'</td><td>'+r.inspector+'</td>';
+    const recordDate=String(r.date||'').slice(5);
+    html+='<td class="unit">'+escapeHTML(recordDate)+' ('+escapeHTML(r.day||'')+')</td>';
+    html+='<td>'+escapeHTML(r.timeVal?r.timeVal+'시':r.shift||'')+'</td><td>'+escapeHTML(r.shift||'')+'</td><td>'+escapeHTML(r.inspector||'')+'</td>';
     Object.keys(FLOORS).forEach(f=>{
       const units=FLOORS[f].units;
-      const filled=units.filter(u=>r.floors[f]&&r.floors[f][u]&&r.floors[f][u].temp!=='').length;
+      const floorData=(r.floors&&r.floors[f])||{};
+      const filled=units.filter(u=>floorData[u]&&floorData[u].temp!=='').length;
       html+='<td class="'+(filled===units.length?'ok':filled>0?'val':'empty')+'">'+filled+'/'+units.length+'</td>';
     });
 
-    html+='<td><button onclick="deleteRecord('+r.id+')" style="background:none;border:1px solid rgba(248,113,113,.4);border-radius:4px;color:var(--red);font-size:10px;padding:3px 8px;cursor:pointer;font-family:var(--mono)">삭제</button></td>';
+    html+='<td><button onclick="deleteRecord('+JSON.stringify(r.id)+')" style="background:none;border:1px solid rgba(248,113,113,.4);border-radius:4px;color:var(--red);font-size:10px;padding:3px 8px;cursor:pointer;font-family:var(--mono)">삭제</button></td>';
     html+='</tr>';
   });
   html+='</tbody></table></div></div>';
 
   // 최신 데이터 상세
-  html+='<div style="font-family:var(--mono);font-size:10px;color:var(--cyan);margin-bottom:10px;letter-spacing:.06em">▸ 최신 점검 상세 · '+latest.date+' '+latest.shift+'</div>';
+  html+='<div style="font-family:var(--mono);font-size:10px;color:var(--cyan);margin-bottom:10px;letter-spacing:.06em">▸ 최신 점검 상세 · '+escapeHTML(latest.date||'')+' '+escapeHTML(latest.shift||'')+'</div>';
   Object.keys(FLOORS).forEach(f=>{
     const units=FLOORS[f].units;
-    const hasData=units.some(u=>latest.floors[f]&&latest.floors[f][u]&&latest.floors[f][u].temp!=='');
+    const latestFloor=(latest.floors&&latest.floors[f])||{};
+    const hasData=units.some(u=>latestFloor[u]&&latestFloor[u].temp!=='');
     html+='<div class="pc-floor"><div class="pc-floor-title">'+f;
     if(!hasData) html+=' <span style="font-size:10px;color:var(--text3);font-weight:400">(데이터 없음)</span>';
     html+='</div>';
     html+='<div style="overflow-x:auto"><table class="pc-table" style="min-width:280px"><thead><tr><th>호기</th><th>온도(°C)</th><th>습도(%)</th><th>판정</th></tr></thead><tbody>';
     units.forEach(u=>{
-      const d=latest.floors[f]&&latest.floors[f][u]?latest.floors[f][u]:{temp:'',hum:''};
+      const d=latestFloor[u]||{temp:'',hum:''};
       const t=d.temp!==''?parseFloat(d.temp).toFixed(1):'-';
       const h=d.hum!==''?parseFloat(d.hum).toFixed(1):'-';
       let rc='empty',rt='-';
@@ -794,9 +822,7 @@ function printReport(){
   if(!latest){ showToast('데이터 없음','err'); return; }
 
   const now=new Date(latest.date);
-  const inspector=latest.inspector;
-  const shift=latest.shift;
-  const timeStr=latest.time;
+  const inspector=escapeHTML(latest.inspector||'');
   const timeRangeMap={'07':'06:30 ~ 07:00','10':'09:30 ~ 10:00','15':'14:30 ~ 15:30','22':'21:30 ~ 22:00'};
   const timeRange=timeRangeMap[latest.timeVal]||latest.time;
   const dateStr=(now.getMonth()+1)+'/'+now.getDate()+' '+timeRange;
@@ -804,7 +830,7 @@ function printReport(){
   // 층별 통계 계산
   let tableRows='';
   Object.keys(FLOORS).forEach(floor=>{
-    const stats=calcFloorStats(latest.floors[floor], FLOORS[floor].units);
+    const stats=calcFloorStats(latest.floors&&latest.floors[floor], FLOORS[floor].units);
     if(!stats) return;
     const {maxT,minH,avgT,avgH}=stats;
     tableRows+=`<tr>
@@ -899,17 +925,13 @@ ${'<'+'/scri'+'pt>'}
 async function deleteRecord(id){
   if(!confirm('이 기록을 삭제할까요?')) return;
   try{
-    const res=await fetch(API_URL);
-    if(!res.ok) throw new Error(res.status);
-    const j=await res.json();
-    let records=Array.isArray(j)?j:Array.isArray(j.record)?j.record:[];
+    let records=normalizeRecords(await fetchJSON(API_URL));
     records=records.filter(r=>r.id!==id);
-    const saveRes=await fetch(API_URL,{
+    await fetchJSON(API_URL,{
       method:'PUT',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify(records)
     });
-    if(!saveRes.ok) throw new Error(saveRes.status);
     binData=records;
     try{ localStorage.setItem('binData_cache',JSON.stringify(binData)); } catch(e){}
     showToast('삭제 완료 ✓','ok');
@@ -941,7 +963,7 @@ const FLOOR_SCHEMA = {
 function generateTSV(floor, record){
   // xlsm 셀추가 매크로가 키/NO/날짜/수식 자동처리
   // G열(시간)부터 붙여넣기용: 시간, 점검자, 각 호기 온도/습도만
-  const fd = record.floors[floor]||{};
+  const fd = (record.floors&&record.floors[floor])||{};
   const units = FLOORS[floor].units;
   const timeVal = record.timeVal||'00';
   const timeStr = timeVal+':00';
@@ -1016,7 +1038,8 @@ async function downloadExcel(){
         ];
         const temps=[], hums=[];
         units.forEach(u=>{
-          const d=r.floors[floor]&&r.floors[floor][u]?r.floors[floor][u]:{temp:'',hum:''};
+          const floorData=(r.floors&&r.floors[floor])||{};
+          const d=floorData[u]||{temp:'',hum:''};
           const t=d.temp!==''?parseFloat(d.temp):null;
           const h=d.hum!==''?parseFloat(d.hum):null;
           row.push(t!==null?t:'');
@@ -1105,7 +1128,6 @@ let clickCount=0, clickTimer=null;
 function initLongPress(){
   const el=document.getElementById('appTitle');
   if(!el){ console.log('appTitle 없음'); return; }
-  console.log('initLongPress 완료', el);
 
   // 모바일 롱프레스
   el.addEventListener('touchstart', function(e){
@@ -1137,27 +1159,25 @@ function cancelLongPress(){
 
 // ── 최근 10개 평균으로 자동채우기 ──
 function fillAverage(){
-  console.log('fillAverage 호출됨, binData:', binData.length);
   if(binData.length<1){ showToast('저장된 데이터가 없어요 (PC탭 먼저 접속 필요)','err'); return; }
 
   // 최근 10개 (현재 제외)
   const recent=binData.slice(-10);
   if(!recent.length){ showToast('참조할 데이터 없음','err'); return; }
-  console.log('가라 기능 실행, 참조 데이터:', recent.length+'개');
 
   Object.keys(FLOORS).forEach(floor=>{
     FLOORS[floor].units.forEach(u=>{
       const temps=[], hums=[];
       recent.forEach(r=>{
-        const d=r.floors[floor]&&r.floors[floor][u]?r.floors[floor][u]:{temp:'',hum:''};
+        const floorData=(r.floors&&r.floors[floor])||{};
+        const d=floorData[u]||{temp:'',hum:''};
         const t=parseFloat(d.temp), h=parseFloat(d.hum);
         // 이상치 제외 (정상 범위만 평균에 포함)
         if(d.temp!==''&&t>=10&&t<=40) temps.push(t);
         if(d.hum!==''&&h>=10&&h<=99) hums.push(h);
       });
       if(temps.length){
-        // 평균에 ±0.3 랜덤 편차 추가 (너무 똑같으면 티남)
-        const avgT=temps.reduce((a,b)=>a+b)/temps.length;
+              const avgT=temps.reduce((a,b)=>a+b)/temps.length;
         const randT=(Math.random()-0.5)*0.6;
         const val=parseFloat((avgT+randT).toFixed(1));
         data[floor][u].temp=String(val);
