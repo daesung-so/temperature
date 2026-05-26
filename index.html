@@ -723,7 +723,7 @@ async function loadFromBin(){
     renderPC();
   } catch(e){
     setSyncState('err','불러오기 실패: '+e.message);
-    document.getElementById('pcContent').innerHTML='<div class="no-data">데이터를 불러올 수 없어요<br>'+e.message+'</div>';
+    document.getElementById('pcContent').innerHTML='<div class="no-data">데이터를 불러올 수 없어요<br>'+escapeHTML(e.message)+'</div>';
   }
 }
 
@@ -1127,11 +1127,10 @@ let longPressTimer=null;
 let clickCount=0, clickTimer=null;
 function initLongPress(){
   const el=document.getElementById('appTitle');
-  if(!el){ console.log('appTitle 없음'); return; }
+  if(!el) return;
 
   // 모바일 롱프레스
   el.addEventListener('touchstart', function(e){
-    console.log('touchstart');
     cancelLongPress();
     longPressTimer=setTimeout(()=>{ fillAverage(); }, 5000);
   }, {passive:true});
@@ -1146,7 +1145,6 @@ function initLongPress(){
     clearTimeout(clickTimer);
     clickTimer=setTimeout(()=>{ clickCount=0; el.title=''; }, 2000);
     if(clickCount>=5){ clickCount=0; el.title=''; fillAverage(); }
-    console.log('click', clickCount);
   });
 }
 function startLongPress(){
