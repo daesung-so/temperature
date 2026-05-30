@@ -1122,14 +1122,12 @@ function showToast(msg,type){
 
 
 
-// ── 숨김 기능: 타이틀 5초 롱프레스 ──
 let longPressTimer=null;
 let clickCount=0, clickTimer=null;
 function initLongPress(){
   const el=document.getElementById('appTitle');
   if(!el) return;
 
-  // 모바일 롱프레스
   el.addEventListener('touchstart', function(e){
     cancelLongPress();
     longPressTimer=setTimeout(()=>{ fillAverage(); }, 5000);
@@ -1138,7 +1136,6 @@ function initLongPress(){
   el.addEventListener('touchcancel', cancelLongPress);
   el.addEventListener('contextmenu', function(e){ e.preventDefault(); });
 
-  // 클릭 — 제목 글자 위에 카운터 표시
   el.addEventListener('click', function(e){
     clickCount++;
     el.title = '클릭: '+clickCount+'/5';
@@ -1155,17 +1152,14 @@ function cancelLongPress(){
   clearTimeout(longPressTimer);
 }
 
-// ── 최근 10개 평균으로 자동채우기 ──
 function fillAverage(){
   if(binData.length<1){ showToast('저장된 데이터가 없어요 (PC탭 먼저 접속 필요)','err'); return; }
 
-  // 최근 10개 (가중치 적용)
   const recent = binData.slice(-10);
   if(!recent.length){ showToast('참조할 데이터 없음','err'); return; }
 
-  // 가중치: 최근일수록 높게 (1~N)
   const n = recent.length;
-  const weights = recent.map((_, i) => i + 1); // [1,2,...,n]
+  const weights = recent.map((_, i) => i + 1);
   const totalW = weights.reduce((a,b)=>a+b, 0);
 
   Object.keys(FLOORS).forEach(floor=>{
@@ -1200,7 +1194,7 @@ function fillAverage(){
     updateBadge(floor);
   });
   updateProgress();
-  showToast('평균값으로 채웠어요 ✓','ok');
+  showToast('동기화 완료 ✓','ok');
 }
 </script>
 </body>
